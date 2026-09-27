@@ -255,6 +255,15 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                     if r.note == "already attested" {
                         continue;
                     }
+                    loom_core::journal::record(
+                        "rebuild",
+                        serde_json::json!({
+                            "rebuilder": c.id, "org": c.org, "package": r.package, "version": r.version,
+                            "outcome": format!("{:?}", r.outcome).to_lowercase(),
+                            "artifact": r.artifact.map(|d| d.short()), "log_index": r.log_index, "note": r.note,
+                            "into_fork": into_fork, "tamper": c.tamper,
+                        }),
+                    );
                     println!(
                         "thread {}: {:<14} {:<10} {:<15} {}{}",
                         c.id,

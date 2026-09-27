@@ -22,6 +22,11 @@
 # Everything is inert: the "malicious" builds only read a planted decoy and
 # ping a local sink. Nothing leaves the machine.
 #
+# A live dashboard of the whole deployment is served on
+# http://127.0.0.1:7790 while the demo runs, and a self-contained snapshot is
+# written to $LOOM_HOME/report.html at the end. Set LOOM_HOLD=1 to keep the
+# services and dashboard up after the last scenario (Ctrl-C to stop).
+#
 # Usage:  demo/run.sh [scenario]     (default: all)
 #   scenarios: healthy quarantine orphan npm forcepush placement sandbox
 #              splitview audit
@@ -35,11 +40,17 @@ BIN="$ROOT/target/debug"
 LOG="$LOOM_HOME/logs"
 SCENARIO="${1:-all}"
 HOST=127.0.0.1
+DASH_PORT="${LOOM_DASHBOARD_PORT:-7790}"
+# Event journal read by the dashboard (see loom_core::journal).
+export LOOM_EVENTS="$LOOM_HOME/events.jsonl"
 
 # ---- pretty printing -------------------------------------------------------
 b(){ printf '\033[1m%s\033[0m\n' "$*"; }
 hr(){ printf '%s\n' "─────────────────────────────────────────────────────────────────────────"; }
-step(){ echo; hr; b "▶ $*"; hr; }
+note(){ "$BIN/loom-testbed" note "$@" >/dev/null 2>&1 || true; }
+step(){ echo; hr; b "▶ $*"; hr; note scenario "$*"; }
+# The takeaway of a scenario: printed, and journalled for the dashboard.
+conclude(){ printf '%s\n' "$1" | fold -s -w 76 | sed 's/ *$//; 1s/^/→ /; 2,$s/^/  /'; note conclusion "$1"; }
 run(){ printf '\033[2m$ %s\033[0m\n' "$*"; "$@"; }
 
 cleanup(){
@@ -68,10 +79,20 @@ fi
 free_ports(){
   # Kill anything left listening on our ports (by port, never by process name,
   # so this never matches the script's own command line).
-  for p in 7700 7710 7721 7722 7723 7731 7732 7733 7781; do
+  for p in 7700 7710 7721 7722 7723 7731 7732 7733 7781 "$DASH_PORT"; do
     local pid
     pid=$(ss -tlnp 2>/dev/null | grep -F ":$p " | grep -oP 'pid=\K[0-9]+' | head -1)
     [ -n "$pid" ] && kill -9 "$pid" 2>/dev/null
+  done
+}
+
+# Serve each rebuilder's content-addressed store to the network, so the
+# client can fetch attested artifacts by hash (verify, don't build).
+start_peers(){
+  local ports=(7731 7732 7733) ids=(thread-a thread-b thread-c)
+  for j in 0 1 2; do
+    "$BIN/loomd" peer --cas "$LOOM_HOME/thread-${ids[$j]}-cache/cas" --listen "$HOST:${ports[$j]}" \
+      >"$LOG/peer-${ids[$j]}.log" 2>&1 &
   done
 }
 
@@ -85,13 +106,8 @@ start_services(){
   for i in 1 2 3; do
     "$BIN/loomd" witness --config "$LOOM_HOME/svc/witness-$i.toml" >"$LOG/witness-$i.log" 2>&1 &
   done
-  # Serve each rebuilder's content-addressed store to the network, so the
-  # client can fetch attested artifacts by hash (verify, don't build).
-  local ports=(7731 7732 7733) ids=(thread-a thread-b thread-c)
-  for j in 0 1 2; do
-    "$BIN/loomd" peer --cas "$LOOM_HOME/thread-${ids[$j]}-cache/cas" --listen "$HOST:${ports[$j]}" \
-      >"$LOG/peer-${ids[$j]}.log" 2>&1 &
-  done
+  start_peers
+  "$BIN/loom-testbed" dashboard --listen "$HOST:$DASH_PORT" >"$LOG/dashboard.log" 2>&1 &
   PIDS="$(jobs -p | tr '\n' ' ')"
   sleep 2
 }
@@ -111,6 +127,7 @@ want(){ [ "$SCENARIO" = all ] || [ "$SCENARIO" = "$1" ]; }
 b "Loom — decentralised package manager · end-to-end demo"
 echo "deployment root: $LOOM_HOME"
 start_services
+echo "live dashboard:  http://$HOST:$DASH_PORT"
 TIER=$("$BIN/loom" sandbox-check 2>/dev/null | awk '/sandbox tier/{print $3}')
 echo "sandbox tier on this host: ${TIER:-unavailable}"
 [ "$TIER" = full ] || echo "  (note: full tier needs unprivileged user namespaces; reduced tier still enforces Landlock + seccomp)"
@@ -135,8 +152,7 @@ if want healthy; then
   b "loom install hello-loom — resolves libweft first, installs by content address:"
   run "$BIN/loom" install hello-loom
   echo
-  echo "The artifact came from a peer by hash; k independent attestations agreed,"
-  echo "so no PKGBUILD code ran on this machine."
+  conclude "The artifact came from a peer by content address and three independent rebuilders agreed on it, so no PKGBUILD code ran on this machine."
 fi
 
 # ---------------------------------------------------------------- quarantine
@@ -155,7 +171,7 @@ JSON
   "$BIN/loom-testbed" set-age tlsprobe 1 >/dev/null
   rebuild_all tlsprobe
   run "$BIN/loom" verify tlsprobe || true
-  echo "→ quarantine is waived only because the advisory feed says it remediates a vuln (FR-7.3)."
+  conclude "Quarantine is waived only because the advisory feed says the new version remediates a vulnerability (FR-7.3)."
 fi
 
 # ---------------------------------------------------------------- orphan
@@ -174,8 +190,7 @@ if want orphan; then
   b "loom install orphan-tool  (upgrade):"
   run "$BIN/loom" install orphan-tool || true
   echo
-  echo "→ Loom blocks on the maintainer change (FR-8.5) BEFORE building. Independently,"
-  echo "  no rebuilder would vouch for 1.1: its build reached for \$HOME and the network."
+  conclude "Loom blocks on the maintainer change (FR-8.5) before building anything. Independently, no rebuilder would vouch for 1.1: its build reached for \$HOME and the network."
 fi
 
 # ---------------------------------------------------------------- npm inject
@@ -199,6 +214,7 @@ if want npm; then
   echo
   b "did anything reach the network sink?"
   run "$BIN/loom-testbed" sink
+  conclude "No rebuilder would vouch for npm-helper 2.5, and the client rejects its own confined build of it. The payload exited 0, but it reached for credentials and the network, and nothing reached the sink."
 fi
 
 # ---------------------------------------------------------------- forcepush
@@ -212,8 +228,13 @@ if want forcepush; then
   "$BIN/loom-testbed" set-age forcepush-lib 720 >/dev/null
   rebuild_all forcepush-lib
   run "$BIN/loom" verify forcepush-lib || true
-  echo "→ Loom detects the non-linear history (FR-8.4); the placement policy would"
-  echo "  also block the pacman hook (persistence)."
+  echo
+  echo "Suppose the user reviews the rewrite and overrides the continuity alarm."
+  echo "The artifact still carries a pacman hook — a persistence vector:"
+  OV=$("$BIN/loom" override add continuity forcepush-lib --reason "demo: reviewed rewrite" | grep -oP '#\K[0-9]+')
+  run "$BIN/loom" verify forcepush-lib || true
+  "$BIN/loom" override rm "$OV" >/dev/null
+  conclude "Loom detects the non-linear history (FR-8.4). Even with that alarm overridden, the placement policy independently blocks the planted pacman hook (audit A4)."
 fi
 
 # ---------------------------------------------------------------- placement
@@ -221,7 +242,7 @@ if want placement; then
   step "6. Python .pth startup hook (LiteLLM vector) — placement policy"
   rebuild_all pth-inject
   run "$BIN/loom" verify pth-inject --build || true
-  echo "→ the .pth executes on every Python start; the placement policy blocks it (audit A4)."
+  conclude "The .pth file would execute on every Python start; the placement policy blocks it (audit A4)."
 fi
 
 # ---------------------------------------------------------------- sandbox
@@ -244,9 +265,10 @@ if want sandbox; then
   UNCONF_HITS=$("$BIN/loom-testbed" sink | grep -c HIT || true)
   echo
   b "network sink hits:  confined=$CONF_HITS   unconfined=$UNCONF_HITS"
+  note sink "confined vs unconfined sink hits" --set confined="$CONF_HITS" --set unconfined="$UNCONF_HITS"
   run "$BIN/loom-testbed" sink
   rm -f "$HOME/.loom-canary"
-  echo "→ under Heddle the build cannot read \$HOME or reach the network; unconfined it can."
+  conclude "Under Heddle the build cannot read \$HOME or reach the network; unconfined, the same build phones home."
 fi
 
 # ---------------------------------------------------------------- split view
@@ -261,7 +283,10 @@ if want splitview; then
   "$BIN/loomd" witness --config "$LOOM_HOME/svc/witness-1.toml" >"$LOG/w1.log" 2>&1 &
   "$BIN/loomd" witness --config "$LOOM_HOME/svc/witness-2.toml" >"$LOG/w2.log" 2>&1 &
   "$BIN/loomd" witness --config "$LOOM_HOME/svc/witness-3-evil.toml" >"$LOG/w3.log" 2>&1 &
+  start_peers
+  "$BIN/loom-testbed" dashboard --listen "$HOST:$DASH_PORT" >"$LOG/dashboard.log" 2>&1 &
   PIDS="$(jobs -p | tr '\n' ' ')"
+  note attack "Warp restarted in split-view mode; witness-3 corrupted" --set corrupt_witness=witness-3 --set victim=victim
   sleep 2
   rebuild_all libweft hello-loom >/dev/null
   echo "The victim client syncs the honest history:"
@@ -273,6 +298,7 @@ if want splitview; then
   echo "alice pushes a new commit of hello-loom. Honest rebuilders a and b attest it"
   echo "to the PUBLIC history, which the honest witnesses cosign:"
   "$BIN/loom-testbed" publish hello-loom 1.2-1 --maintainer alice >/dev/null
+  "$BIN/loom-testbed" set-age hello-loom 720 >/dev/null   # a routine commit, past quarantine
   for t in thread-a thread-b; do
     "$BIN/loomd" thread --config "$LOOM_HOME/svc/$t.toml" --once --package hello-loom 2>&1 | sed "s/^/  [$t] /"
   done
@@ -290,9 +316,7 @@ if want splitview; then
   b "an uninvolved client syncs the public history:"
   "$BIN/loom" log 2>&1 | sed 's/^/  /' || true
   echo
-  echo "→ the honest witnesses refused to cosign the fork, so the victim's client"
-  echo "  rejects it (1 < 2-of-3 witness threshold) and never trusts the backdoored"
-  echo "  attestation, while everyone else keeps the one public history (NFR-SEC-5)."
+  conclude "The honest witnesses refused to cosign the fork, so the victim's client rejects it (1 < 2-of-3 witness threshold) and never trusts the backdoored attestation, while everyone else keeps the one public history (NFR-SEC-5)."
 fi
 
 # ---------------------------------------------------------------- audit
@@ -303,6 +327,18 @@ if want audit; then
   "$BIN/loom-testbed" set-age orphan-tool 720 >/dev/null
   "$BIN/loom" install orphan-tool >/dev/null 2>&1
   run "$BIN/loom" audit || true
+  conclude "Every installed package is backed by independent attestations in the verified log, and orphan-tool's change of maintainer stays flagged even though the upgrade was refused."
 fi
 
-echo; hr; b "demo complete — logs under $LOG"
+# ---------------------------------------------------------------- report
+echo; hr
+if [ "$SCENARIO" = all ]; then
+  echo "Running the acceptance-criteria harness for the report…"
+  "$BIN/loom-eval" --json >"$LOOM_HOME/eval.json" 2>/dev/null || true
+fi
+"$BIN/loom-testbed" report --out "$LOOM_HOME/report.html"
+b "demo complete — logs under $LOG"
+if [ "${LOOM_HOLD:-0}" = 1 ]; then
+  echo "services and dashboard stay up at http://$HOST:$DASH_PORT — Ctrl-C to stop"
+  wait
+fi

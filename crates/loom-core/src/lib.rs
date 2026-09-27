@@ -11,6 +11,7 @@ pub mod dsse;
 pub mod duration;
 pub mod ecosystem;
 pub mod http;
+pub mod journal;
 pub mod keys;
 pub mod time;
 pub mod vercmp;

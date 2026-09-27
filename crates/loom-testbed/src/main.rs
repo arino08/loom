@@ -1,5 +1,6 @@
 //! `loom-testbed` — mock AUR + provisioning for the demo and evaluation.
 
+mod dashboard;
 mod mockaur;
 mod provision;
 
@@ -53,6 +54,27 @@ enum Cmd {
     },
     /// Print the resolved endpoints JSON.
     Endpoints,
+    /// Serve the live deployment dashboard (web UI over every service).
+    Dashboard {
+        #[arg(long, default_value = "127.0.0.1:7790")]
+        listen: String,
+    },
+    /// Write a self-contained HTML snapshot of the dashboard.
+    Report {
+        #[arg(long)]
+        out: PathBuf,
+        /// Omit the doctype/head shell (for hosts that supply their own).
+        #[arg(long)]
+        fragment: bool,
+    },
+    /// Append a note to the event journal ($LOOM_EVENTS), e.g. a scenario
+    /// step or its conclusion. `--set k=v` adds fields (numbers parsed).
+    Note {
+        kind: String,
+        text: String,
+        #[arg(long = "set")]
+        set: Vec<String>,
+    },
 }
 
 fn fixtures() -> PathBuf {
@@ -101,16 +123,22 @@ fn run() -> anyhow::Result<()> {
                 }
             }
             let commit = aur.publish(&pkg, &dir, &maintainer, rewrite)?;
+            loom_core::journal::record(
+                "publish",
+                serde_json::json!({"package": pkg, "version": dir, "maintainer": maintainer, "rewrite": rewrite, "commit": &commit[..12]}),
+            );
             println!("published {pkg} {dir} by {maintainer}{} → {}", if rewrite { " (history rewritten)" } else { "" }, &commit[..12]);
         }
         Cmd::SetAge { pkg, hours } => {
             let aur = MockAur::open(&aur_root(&home), &fixtures())?;
             aur.set_published(&pkg, loom_core::time::now() - hours * 3600)?;
+            loom_core::journal::record("set-age", serde_json::json!({"package": pkg, "hours": hours}));
             println!("{pkg} published {hours}h ago");
         }
         Cmd::Advisories { file } => {
             let aur = MockAur::open(&aur_root(&home), &fixtures())?;
             let adv: Vec<serde_json::Value> = serde_json::from_slice(&std::fs::read(&file)?)?;
+            loom_core::journal::record("advisories", serde_json::json!({"advisories": adv}));
             aur.set_advisories(adv)?;
             println!("advisory feed loaded from {}", file.display());
         }
@@ -128,6 +156,26 @@ fn run() -> anyhow::Result<()> {
                     println!("HIT {h}");
                 }
             }
+        }
+        Cmd::Dashboard { listen } => {
+            let d = dashboard::Dashboard::new(&home);
+            let srv = loom_core::http::Server::start(&listen, 4, d.handler())?;
+            eprintln!("dashboard on {}", srv.url());
+            srv.wait();
+        }
+        Cmd::Report { out, fragment } => {
+            std::fs::write(&out, dashboard::Dashboard::new(&home).snapshot_html(fragment))?;
+            println!("report written to {}", out.display());
+        }
+        Cmd::Note { kind, text, set } => {
+            let mut m = serde_json::Map::new();
+            m.insert("text".into(), text.into());
+            for kv in set {
+                let (k, v) = kv.split_once('=').ok_or_else(|| anyhow::anyhow!("--set expects k=v, got {kv:?}"))?;
+                let v = v.parse::<i64>().map(serde_json::Value::from).unwrap_or_else(|_| v.into());
+                m.insert(k.into(), v);
+            }
+            loom_core::journal::record(&kind, serde_json::Value::Object(m));
         }
         Cmd::Endpoints => {
             print!("{}", std::fs::read_to_string(home.join("endpoints.json"))?);

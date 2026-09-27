@@ -30,11 +30,17 @@ LOOM_KERNEL_TESTS=1 cargo test -p loom-heddle --test escape   # sandbox escapes
 
 ## Demo/testbed gotchas
 
-- Services bind fixed ports (7700/7710/772x/773x). `demo/run.sh` frees them by
+- Services bind fixed ports (7700/7710/772x/773x, dashboard 7790). `demo/run.sh` frees them by
   **port**, never by process name — do not `pkill -f loomd` from a shell whose
   own command line contains "loomd", or it kills itself.
 - Each `loom-testbed provision` regenerates keys under `$LOOM_HOME/keys`; stale
   daemons from a previous run hold old keys and will reject the new log.
+- `loom-testbed dashboard` / `report` render `crates/loom-testbed/src/dashboard.html`
+  (a fragment; the Rust side adds the document shell). Keep it free of `</` in
+  embedded JSON — `snapshot_html` escapes it.
+- Builds that trip FR-3.2 (home/credentials) or FR-3.4 (network) denials are
+  hostile: rebuilders refuse to attest them and Weave fails the sandbox rule,
+  even if the build exits 0.
 - The mock AUR reads its scenario from disk per request, so CLI mutations
   (`publish`, `set-age`, `advisories`) are visible to the running server.
 
