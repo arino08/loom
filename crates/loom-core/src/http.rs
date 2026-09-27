@@ -16,6 +16,9 @@ pub struct Request {
     pub method: String,
     pub path: String,
     pub query: BTreeMap<String, String>,
+    /// All key/value pairs in order, preserving repeated keys such as the
+    /// AUR RPC's `arg[]=a&arg[]=b`.
+    pub query_pairs: Vec<(String, String)>,
     pub headers: BTreeMap<String, String>,
     pub body: Vec<u8>,
     pub remote: Option<SocketAddr>,
@@ -24,6 +27,10 @@ pub struct Request {
 impl Request {
     pub fn q(&self, k: &str) -> Option<&str> {
         self.query.get(k).map(|s| s.as_str())
+    }
+    /// All values supplied for `k` (repeated keys).
+    pub fn q_all(&self, k: &str) -> Vec<String> {
+        self.query_pairs.iter().filter(|(kk, _)| kk == k).map(|(_, v)| v.clone()).collect()
     }
     pub fn q_u64(&self, k: &str) -> Result<u64, Response> {
         self.q(k)
@@ -94,7 +101,7 @@ fn percent_decode(s: &str) -> String {
     String::from_utf8_lossy(&out).into_owned()
 }
 
-pub fn parse_query(q: &str) -> BTreeMap<String, String> {
+pub fn parse_query_pairs(q: &str) -> Vec<(String, String)> {
     q.split('&')
         .filter(|kv| !kv.is_empty())
         .map(|kv| match kv.split_once('=') {
@@ -102,6 +109,10 @@ pub fn parse_query(q: &str) -> BTreeMap<String, String> {
             None => (percent_decode(kv), String::new()),
         })
         .collect()
+}
+
+pub fn parse_query(q: &str) -> BTreeMap<String, String> {
+    parse_query_pairs(q).into_iter().collect()
 }
 
 pub struct Server {
@@ -127,10 +138,11 @@ impl Server {
             hs.push(std::thread::spawn(move || {
                 while let Ok(mut rq) = srv.recv() {
                     let full = rq.url().to_string();
-                    let (path, query) = match full.split_once('?') {
-                        Some((p, q)) => (p.to_string(), parse_query(q)),
-                        None => (full.clone(), BTreeMap::new()),
+                    let (path, query_pairs) = match full.split_once('?') {
+                        Some((p, q)) => (p.to_string(), parse_query_pairs(q)),
+                        None => (full.clone(), Vec::new()),
                     };
+                    let query: BTreeMap<String, String> = query_pairs.iter().cloned().collect();
                     let mut body = vec![];
                     let _ = rq.as_reader().take(64 << 20).read_to_end(&mut body);
                     let headers = rq
@@ -147,6 +159,7 @@ impl Server {
                         method: rq.method().as_str().to_string(),
                         path,
                         query,
+                        query_pairs,
                         headers,
                         body,
                         remote: rq.remote_addr().copied(),
