@@ -443,7 +443,7 @@ fn init_inner(spec: &SandboxSpec) -> anyhow::Result<std::convert::Infallible> {
     let mut reduced = vec![];
     let mut tier = Tier::Full;
 
-    // Open the build dir before any namespace/mount changes.
+    // Open the build dir before any namespace/mount changes (existence check).
     let build_c = CString::new(spec.build_dir.as_os_str().as_encoded_bytes())?;
     let build_fd = unsafe { libc::open(build_c.as_ptr(), libc::O_PATH | libc::O_DIRECTORY) };
     if build_fd < 0 {
@@ -493,7 +493,11 @@ fn init_inner(spec: &SandboxSpec) -> anyhow::Result<std::convert::Infallible> {
             libc::prctl(libc::PR_SET_PDEATHSIG, libc::SIGKILL);
             let h = b"heddle";
             libc::sethostname(h.as_ptr() as *const libc::c_char, h.len());
-            mounts::setup(Path::new(&format!("/proc/self/fd/{build_fd}")))?;
+            // Bind the build dir by its real path: the new root
+            // (/tmp/.loom-root.PID) does not shadow it, so the path stays
+            // visible, and a direct bind avoids a /proc/self/fd magic-symlink
+            // source (which some kernels reject as a bind source, EINVAL).
+            mounts::setup(&spec.build_dir)?;
         }
         layers.push("namespaces: user, mount (pivot_root to minimal tmpfs root), network (empty), PID, IPC, UTS, cgroup".into());
         if spec.allow_network {
