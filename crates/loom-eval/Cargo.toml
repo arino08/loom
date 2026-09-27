@@ -1,7 +1,20 @@
 [package]
 name = "loom-eval"
+description = "Loom evaluation harness: attack-replay (E1), false-positives (E2), ablation (E4), overhead (E5), log integrity (E6) against the acceptance criteria"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
+[[bin]]
+name = "loom-eval"
+path = "src/main.rs"
+
 [dependencies]
+loom-core.workspace = true
+loom-warp.workspace = true
+loom-weave.workspace = true
+loom-heddle.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+clap.workspace = true
