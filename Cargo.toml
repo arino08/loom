@@ -46,7 +46,7 @@ clap = { version = "4", features = ["derive"] }
 tar = "0.4"
 flate2 = "1"
 libc = "0.2"
-nix = { version = "0.29", features = ["mount", "sched", "unistd", "fs", "socket", "process", "hostname", "uio", "signal", "user", "ioctl"] }
+nix = { version = "0.29", features = ["mount", "sched", "fs", "socket", "process", "hostname", "uio", "signal", "user", "ioctl"] }
 landlock = "0.4"
 
 loom-core = { path = "crates/loom-core" }

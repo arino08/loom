@@ -1,7 +1,23 @@
 [package]
 name = "loom-heddle"
+description = "Heddle: Loom's least-privilege build executor (namespaces, Landlock, seccomp-BPF with a user-notification supervisor)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+loom-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+libc.workspace = true
+nix.workspace = true
+landlock.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[[test]]
+name = "escape"
+harness = false
