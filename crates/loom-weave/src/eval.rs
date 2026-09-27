@@ -236,6 +236,17 @@ fn find_override<'a>(ev: &'a Evidence, kind: OverrideKind) -> Option<&'a Overrid
     })
 }
 
+/// Whether a sandbox denial reveals hostile intent: a read of the user's
+/// home/credentials (FR-3.2) or network use (FR-3.4) without an exception.
+/// Mirrors `loom_heddle::Denial::is_hostile`.
+pub fn is_hostile_denial(requirement: &str, network_allowed: bool) -> bool {
+    match requirement {
+        "FR-3.2" => true,
+        "FR-3.4" => !network_allowed,
+        _ => false,
+    }
+}
+
 fn rr(id: &str, req: &str, title: &str, status: Status, summary: String) -> RuleResult {
     RuleResult {
         id: id.into(),
@@ -607,10 +618,33 @@ pub fn evaluate(policy: &Policy, ev: &Evidence) -> Decision {
                     r.evidence.push(format!("denied {} {} — rule {} ({})", d.syscall, d.resource, d.rule, d.requirement));
                 }
                 r.evidence.extend(b.reduced.iter().map(|x| format!("reduced assurance: {x}")));
+                let net_ok = find_override(ev, OverrideKind::SandboxNetwork).is_some() || eff.allow_network;
+                let hostile: Vec<&DenialView> = b.denials.iter().filter(|d| is_hostile_denial(&d.requirement, net_ok)).collect();
                 if let Some(e) = &b.setup_error {
                     r.status = Status::Fail;
                     r.summary = format!("sandbox could not be established — build refused (NFR-SEC-1): {e}");
                     r.remediation = Some("enable Landlock (Linux >= 5.13) and unprivileged user namespaces; see docs/SANDBOX.md".into());
+                } else if !hostile.is_empty() {
+                    // Contained, but a build that reached for credentials or
+                    // the network is not trusted, even if it exited 0 (a
+                    // payload wrapped in `|| true`). Fail closed.
+                    let mut what: Vec<&str> = hostile
+                        .iter()
+                        .map(|d| if d.requirement == "FR-3.4" { "the network" } else { "home/credential files" })
+                        .collect();
+                    what.dedup();
+                    r.status = Status::Fail;
+                    r.summary = format!(
+                        "build tried to reach {} — contained by Heddle, artifact rejected (exit {}; {} hostile access attempt(s))",
+                        what.join(" and "),
+                        b.exit_code,
+                        hostile.len()
+                    );
+                    r.remediation = Some(if hostile.iter().all(|d| d.requirement == "FR-3.4") {
+                        format!("if this package legitimately needs the network at build time: loom override add sandbox-network {pkg} --reason \"...\" (FR-3.8)")
+                    } else {
+                        "credential access is never granted to a build; treat this version as malicious and report it".into()
+                    });
                 } else if !b.success {
                     r.status = Status::Fail;
                     r.summary = format!(
@@ -634,7 +668,7 @@ pub fn evaluate(policy: &Policy, ev: &Evidence) -> Decision {
                 } else {
                     r.summary = format!("built under full confinement ({} denial(s) logged)", b.denials.len());
                 }
-                if find_override(ev, OverrideKind::SandboxNetwork).is_some() || eff.allow_network {
+                if net_ok {
                     r.evidence.push("network exception in effect for this package (FR-3.8; listed by loom audit)".into());
                 }
             }

@@ -39,6 +39,10 @@ pub struct Rebuilder {
     /// Demo/evaluation only: model a compromised release pipeline (ADV-3/4)
     /// that attests an artifact not corresponding to the source.
     pub tamper: bool,
+    /// Evaluation only (E6): submit into the forked history a split-view log
+    /// serves to its victim, modelling a hostile log operator colluding
+    /// with a compromised rebuilder. Ignored by logs not in split-view mode.
+    pub into_fork: bool,
     http: Client,
 }
 
@@ -67,6 +71,7 @@ impl Rebuilder {
             cas,
             opts,
             tamper,
+            into_fork: false,
             http: Client::new(Duration::from_secs(10)),
         }
     }
@@ -114,7 +119,11 @@ impl Rebuilder {
     pub fn submit(&self, rec: &LogRecord) -> anyhow::Result<AddResponse> {
         let body = self
             .http
-            .post(&format!("{}/add", self.log_url), "application/json", &serde_json::to_vec(rec)?)?;
+            .post(
+                &format!("{}/add{}", self.log_url, if self.into_fork { "?fork=1" } else { "" }),
+                "application/json",
+                &serde_json::to_vec(rec)?,
+            )?;
         Ok(serde_json::from_slice(&body)?)
     }
 
@@ -138,6 +147,7 @@ impl Rebuilder {
         let mut tier = "unknown".to_string();
         let mut source_digest = None;
         let mut failure = None;
+        let mut hostile: Vec<String> = vec![];
         for (i, v) in vars.iter().enumerate() {
             // Different build path per variant (reduced/unconfined tiers expose it).
             let wd = self
@@ -150,6 +160,12 @@ impl Rebuilder {
             source_digest = Some(b.plan.source_digest);
             if let Some(r) = &b.report {
                 tier = r.tier.as_str().to_string();
+                for d in r.denials.iter().filter(|d| d.is_hostile(self.opts.allow_network)) {
+                    let s = format!("{} {} [{}]", d.syscall, d.resource, d.requirement);
+                    if !hostile.contains(&s) {
+                        hostile.push(s);
+                    }
+                }
             }
             match (b.digest, b.artifact) {
                 (Some(d), Some(a)) => {
@@ -161,6 +177,12 @@ impl Rebuilder {
                     break;
                 }
             }
+        }
+        // A build that reached for credentials or the network was contained,
+        // but its output is not evidence of anything: refuse to vouch for it
+        // (fail closed), whatever its exit status.
+        if failure.is_none() && !hostile.is_empty() {
+            failure = Some(format!("refused: build attempted {}", hostile.join(", ")));
         }
         let (mut outcome, mut claim) = match (&failure, digests.as_slice()) {
             (Some(_), _) => (Outcome::BuildFailed, None),

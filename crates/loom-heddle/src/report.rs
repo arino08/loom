@@ -45,6 +45,25 @@ pub struct Denial {
     pub reason: String,
 }
 
+impl Denial {
+    /// A denial that reveals hostile intent rather than an incidental probe:
+    /// reaching for the user's home/credentials (FR-3.2) or the network
+    /// (FR-3.4, unless a network exception is in effect). Heddle contained
+    /// the attempt, but a build that made it is not trustworthy, so neither
+    /// rebuilders nor clients accept its output (NFR-SEC-1: fail closed).
+    /// Undeclared reads (FR-3.1) and restricted syscalls (FR-3.6) are logged
+    /// only: benign toolchains trip them routinely.
+    pub fn is_hostile(&self, allow_network: bool) -> bool {
+        // Mirrored by loom_weave::eval::is_hostile_denial (Weave does not
+        // depend on Heddle and sees only the requirement id).
+        match self.requirement.as_str() {
+            "FR-3.2" => true,
+            "FR-3.4" => !allow_network,
+            _ => false,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RunReport {
     pub exit_code: i32,

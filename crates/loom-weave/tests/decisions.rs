@@ -222,3 +222,54 @@ fn every_failure_is_explained() {
         }
     }
 }
+
+fn local_build(denials: &[(&str, &str)], success: bool) -> BuildView {
+    BuildView {
+        tier: "full".into(),
+        layers: vec![],
+        reduced: vec![],
+        denials: denials
+            .iter()
+            .map(|(req, res)| DenialView { syscall: "x".into(), resource: (*res).into(), rule: "r".into(), requirement: (*req).into() })
+            .collect(),
+        exit_code: if success { 0 } else { 1 },
+        success,
+        setup_error: None,
+        duration_ms: 1,
+    }
+}
+
+fn locally_built(b: BuildView) -> Evidence {
+    let mut e = ev(vec![]);
+    e.local_build_required = true;
+    e.candidate = Some(Candidate { digest: Digest::of(b"local"), origin: "local".into() });
+    e.build = Some(b);
+    e
+}
+
+fn sandbox_status(d: &Decision) -> Status {
+    d.rules.iter().find(|r| r.id == "sandbox").unwrap().status
+}
+
+#[test]
+fn hostile_denials_fail_closed_even_when_build_exits_zero() {
+    // `curl ... || true` / `cat ~/.ssh/id_* || true`: the build "succeeds".
+    for req in ["FR-3.2", "FR-3.4"] {
+        let d = evaluate(&pol(), &locally_built(local_build(&[(req, "probe")], true)));
+        assert_eq!(sandbox_status(&d), Status::Fail, "{req}: {}", render(&d, true));
+        assert_eq!(d.outcome, Outcome::Block);
+    }
+    // Incidental denials (undeclared reads, restricted syscalls) are logged only.
+    let d = evaluate(&pol(), &locally_built(local_build(&[("FR-3.1", "/etc/x"), ("FR-3.6", "ptrace")], true)));
+    assert_eq!(sandbox_status(&d), Status::Pass, "{}", render(&d, true));
+}
+
+#[test]
+fn network_exception_makes_network_denials_non_hostile_but_not_credentials() {
+    let mut e = locally_built(local_build(&[("FR-3.4", "AF_INET")], true));
+    e.overrides.push(Override { id: 1, kind: OverrideKind::SandboxNetwork, package: "hello".into(), version: None, reason: "needs npm".into(), created_at: NOW, user: "u".into() });
+    assert_eq!(sandbox_status(&evaluate(&pol(), &e)), Status::Pass);
+    let mut e2 = e.clone();
+    e2.build = Some(local_build(&[("FR-3.2", "/root/.ssh/id_ed25519")], true));
+    assert_eq!(sandbox_status(&evaluate(&pol(), &e2)), Status::Fail);
+}
