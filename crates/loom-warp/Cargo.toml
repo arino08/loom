@@ -1,0 +1,23 @@
+[package]
+name = "loom-warp"
+description = "Warp: Loom's witnessed, append-only Merkle transparency log (RFC 6962 / C2SP tlog-checkpoint, tlog-cosignature, tlog-witness)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+loom-core.workspace = true
+tlog_tiles.workspace = true
+signed_note.workspace = true
+ed25519-dalek.workspace = true
+sha2.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+hex.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true
+signature = "2"
+
+[dev-dependencies]
+tempfile.workspace = true

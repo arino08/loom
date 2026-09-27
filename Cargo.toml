@@ -1,0 +1,62 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/loom-core",
+    "crates/loom-warp",
+    "crates/loom-heddle",
+    "crates/loom-shuttle",
+    "crates/loom-weave",
+    "crates/loom-aur",
+    "crates/loom-thread",
+    "crates/loom-client",
+    "crates/loom-cli",
+    "crates/loom-mockaur",
+    "crates/loom-eval",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+repository = "https://github.com/arino08/loom"
+rust-version = "1.80"
+
+[workspace.dependencies]
+# Cryptography — audited, maintained libraries only (CON-5, NFR-SEC-3).
+ed25519-dalek = { version = "2.1", features = ["rand_core"] }
+sha2 = "0.10"
+rand = "0.8"
+# Transparency-log primitives: Cloudflare's port of Go's sumdb/tlog (RFC 6962
+# Merkle hashing, inclusion + consistency proofs) and c2sp.org/signed-note.
+tlog_tiles = "0.2"
+signed_note = "0.2"
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+toml = "0.8"
+base64 = "0.22"
+hex = "0.4"
+anyhow = "1"
+thiserror = "1"
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+tempfile = "3"
+tiny_http = "0.12"
+ureq = { version = "2", default-features = false, features = ["json"] }
+clap = { version = "4", features = ["derive"] }
+tar = "0.4"
+flate2 = "1"
+libc = "0.2"
+nix = { version = "0.29", features = ["mount", "sched", "unistd", "fs", "socket", "process", "hostname", "uio", "signal", "user", "ioctl"] }
+landlock = "0.4"
+
+loom-core = { path = "crates/loom-core" }
+loom-warp = { path = "crates/loom-warp" }
+loom-heddle = { path = "crates/loom-heddle" }
+loom-shuttle = { path = "crates/loom-shuttle" }
+loom-weave = { path = "crates/loom-weave" }
+loom-aur = { path = "crates/loom-aur" }
+loom-thread = { path = "crates/loom-thread" }
+loom-client = { path = "crates/loom-client" }
+
+[profile.release]
+debug = false
