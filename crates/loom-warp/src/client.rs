@@ -28,6 +28,12 @@ use std::io::Write;
 use std::path::PathBuf;
 use std::time::Duration;
 
+/// Where a client keeps its verified mirror and checkpoint for `origin`.
+pub fn mirror_dir(state_dir: &std::path::Path, origin: &str) -> PathBuf {
+    let tag = loom_core::Digest::of(origin.as_bytes()).short();
+    state_dir.join("warp").join(tag)
+}
+
 #[derive(Clone, Debug)]
 pub struct TrustedLog {
     pub origin: String,
@@ -107,8 +113,7 @@ impl LogClient {
     }
 
     fn dir(&self) -> PathBuf {
-        let tag = loom_core::Digest::of(self.cfg.log.origin.as_bytes()).short();
-        self.cfg.state_dir.join("warp").join(tag)
+        mirror_dir(&self.cfg.state_dir, &self.cfg.log.origin)
     }
 
     fn witness_keys(&self) -> Vec<(String, PublicKey)> {

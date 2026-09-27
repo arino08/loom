@@ -79,6 +79,34 @@ pub struct BuildPlan {
     pub install_script: Option<String>,
 }
 
+/// A file inside a built artifact, as seen by the placement policy.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArtifactFile {
+    /// Absolute install path, e.g. `/usr/bin/hello`.
+    pub path: String,
+    pub mode: u32,
+    pub kind: FileKind,
+    pub size: u64,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FileKind {
+    File,
+    Dir,
+    Symlink,
+}
+
+/// What an artifact would do to the system if installed.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ArtifactManifest {
+    pub name: String,
+    pub version: String,
+    pub files: Vec<ArtifactFile>,
+    /// Install-time script shipped in the artifact (e.g. `.INSTALL`).
+    pub install_script: Option<String>,
+}
+
 pub trait Backend: Send + Sync {
     fn ecosystem(&self) -> &'static str;
 
@@ -106,6 +134,9 @@ pub trait Backend: Send + Sync {
 
     /// Turn the build output tree into a deterministic artifact.
     fn package(&self, plan: &BuildPlan, meta: &PackageMeta) -> anyhow::Result<Vec<u8>>;
+
+    /// List what an artifact contains without executing anything.
+    fn inspect(&self, artifact: &[u8]) -> anyhow::Result<ArtifactManifest>;
 
     /// Is `name` provided by the system's official repositories (FR-1.4)?
     fn is_official(&self, name: &str) -> bool;

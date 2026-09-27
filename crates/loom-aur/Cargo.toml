@@ -1,7 +1,20 @@
 [package]
 name = "loom-aur"
+description = "AUR backend for Loom: RPC, .SRCINFO, git mirrors and lineage, pinned source fetching, deterministic packaging"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+loom-core.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+sha2.workspace = true
+hex.workspace = true
+tar.workspace = true
+flate2.workspace = true
+blake2 = "0.10"
+
+[dev-dependencies]
+tempfile.workspace = true
