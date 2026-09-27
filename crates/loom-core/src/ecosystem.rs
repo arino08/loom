@@ -87,6 +87,10 @@ pub struct ArtifactFile {
     pub mode: u32,
     pub kind: FileKind,
     pub size: u64,
+    /// Content-derived observations (e.g. `python-startup-hook` for a `.pth`
+    /// file containing executable `import` lines).
+    #[serde(default)]
+    pub notes: Vec<String>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]

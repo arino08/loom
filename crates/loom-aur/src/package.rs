@@ -181,17 +181,27 @@ pub fn inspect(artifact: &[u8]) -> anyhow::Result<ArtifactManifest> {
             p if p.starts_with('.') && !p.contains('/') => continue,
             _ => {}
         }
-        let h = e.header();
+        let h = e.header().clone();
         let kind = match h.entry_type() {
             tar::EntryType::Directory => FileKind::Dir,
             tar::EntryType::Symlink => FileKind::Symlink,
             _ => FileKind::File,
         };
+        let mut notes = vec![];
+        if kind == FileKind::File && path.ends_with(".pth") && h.size()? < 1 << 20 {
+            let mut s = String::new();
+            let _ = e.read_to_string(&mut s);
+            // site.py executes any .pth line beginning with "import".
+            if s.lines().any(|l| l.starts_with("import ") || l.starts_with("import\t")) {
+                notes.push("python-startup-hook".to_string());
+            }
+        }
         m.files.push(ArtifactFile {
             path: format!("/{path}"),
             mode: h.mode()?,
             kind,
             size: h.size()?,
+            notes,
         });
     }
     Ok(m)
