@@ -1,6 +1,6 @@
 [package]
 name = "loom-testbed"
-description = "Loom demo/evaluation testbed: scenario-driven mock AUR (RPC + git + advisories), key/config generation, canary exfiltration sink, unconfined baseline runner"
+description = "Loom demo/evaluation testbed: scenario-driven mock AUR (RPC + git + advisories), key/config generation, local canary sink, unconfined baseline runner"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -14,6 +14,7 @@ loom-core.workspace = true
 loom-warp.workspace = true
 loom-heddle.workspace = true
 loom-aur.workspace = true
+loom-weave.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 toml.workspace = true
