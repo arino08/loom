@@ -49,6 +49,9 @@ enum Cmd {
         /// Serve the CAS to peers while running.
         #[arg(long)]
         serve: bool,
+        /// Evaluation only (E6): submit into a split-view log's victim fork.
+        #[arg(long)]
+        into_fork: bool,
     },
     Peer {
         #[arg(long)]
@@ -214,7 +217,7 @@ fn run(cli: Cli) -> anyhow::Result<()> {
             eprintln!("witness: {} on {}{}", c.name, srv.url(), if c.evil { " [CORRUPT — cosigns anything]" } else { "" });
             srv.wait();
         }
-        Cmd::Thread { config, once, interval, package, serve } => {
+        Cmd::Thread { config, once, interval, package, serve, into_fork } => {
             let c: ThreadConfig = load(&config)?;
             let key = SecretKey::load(&c.key)?;
             let sandbox = match c.sandbox.as_deref() {
@@ -227,7 +230,8 @@ fn run(cli: Cli) -> anyhow::Result<()> {
                 allow_network: false,
                 timeout: Duration::from_secs(3600),
             };
-            let reb = loom_thread::Rebuilder::new(&c.id, &c.org, key, &c.image, &c.log, c.cache.clone(), opts, c.tamper);
+            let mut reb = loom_thread::Rebuilder::new(&c.id, &c.org, key, &c.image, &c.log, c.cache.clone(), opts, c.tamper);
+            reb.into_fork = into_fork;
             let mut aur = loom_aur::AurConfig::official(&c.cache);
             aur.rpc = c.aur.rpc;
             aur.git_template = c.aur.git;

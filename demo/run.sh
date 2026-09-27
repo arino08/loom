@@ -15,7 +15,9 @@
 #   6. a Python .pth startup-hook (placement policy);
 #   7. the sandbox contrast: the SAME malicious build, confined vs unconfined,
 #      against a canary sink;
-#   8. a split-view attack on the log, detected by honest witnesses.
+#   8. a split-view attack on the log (a hostile operator colluding with a
+#      compromised rebuilder), detected because honest witnesses won't cosign;
+#   9. a read-only provenance audit.
 #
 # Everything is inert: the "malicious" builds only read a planted decoy and
 # ping a local sink. Nothing leaves the machine.
@@ -172,8 +174,8 @@ if want orphan; then
   b "loom install orphan-tool  (upgrade):"
   run "$BIN/loom" install orphan-tool || true
   echo
-  echo "→ Loom blocks on the maintainer change (FR-8.5) BEFORE building. And had it"
-  echo "  built, Heddle would have denied the \$HOME read and the network (below)."
+  echo "→ Loom blocks on the maintainer change (FR-8.5) BEFORE building. Independently,"
+  echo "  no rebuilder would vouch for 1.1: its build reached for \$HOME and the network."
 fi
 
 # ---------------------------------------------------------------- npm inject
@@ -187,8 +189,12 @@ if want npm; then
   "$BIN/loom-testbed" set-age npm-helper 720 >/dev/null
   "$BIN/loom-testbed" sink --clear >/dev/null
   echo
-  echo "No rebuilder can reproduce it (their builds have no network either), so it"
-  echo "never reaches k attestations; forcing a local build shows the sandbox denial:"
+  echo "The rebuilders build it under Heddle. The payload swallows its own errors"
+  echo "(|| true), so the build exits 0 — but it reached for \$HOME and the network,"
+  echo "so every rebuilder refuses to vouch for it:"
+  rebuild_all npm-helper
+  echo
+  echo "No attestations, so the client would have to build it itself. Forcing that:"
   run "$BIN/loom" verify npm-helper --build || true
   echo
   b "did anything reach the network sink?"
@@ -257,18 +263,36 @@ if want splitview; then
   "$BIN/loomd" witness --config "$LOOM_HOME/svc/witness-3-evil.toml" >"$LOG/w3.log" 2>&1 &
   PIDS="$(jobs -p | tr '\n' ' ')"
   sleep 2
-  rebuild_all libweft hello-loom
+  rebuild_all libweft hello-loom >/dev/null
   echo "The victim client syncs the honest history:"
   LOOM_CLIENT_ID=victim "$BIN/loom" log | sed 's/^/  /'
   echo
-  echo "The log operator forks the victim's view and diverges the two histories:"
+  echo "The log operator forks the victim's view:"
   run "$BIN/loomd" fork --log http://$HOST:7710 --victim victim
-  rebuild_all fastmover      # advances the public history
+  echo
+  echo "alice pushes a new commit of hello-loom. Honest rebuilders a and b attest it"
+  echo "to the PUBLIC history, which the honest witnesses cosign:"
+  "$BIN/loom-testbed" publish hello-loom 1.2-1 --maintainer alice >/dev/null
+  for t in thread-a thread-b; do
+    "$BIN/loomd" thread --config "$LOOM_HOME/svc/$t.toml" --once --package hello-loom 2>&1 | sed "s/^/  [$t] /"
+  done
+  echo
+  echo "Meanwhile the operator colludes with a compromised thread-c: a BACKDOORED"
+  echo "hello-loom attestation goes only into the victim's forked history:"
+  sed 's/tamper = false/tamper = true/' "$LOOM_HOME/svc/thread-c.toml" > "$LOOM_HOME/svc/thread-c-evil.toml"
+  "$BIN/loomd" thread --config "$LOOM_HOME/svc/thread-c-evil.toml" --once --package hello-loom --into-fork 2>&1 \
+    | sed "s/^/  [thread-c, compromised → fork] /"
   echo
   b "victim re-syncs:"
   LOOM_CLIENT_ID=victim "$BIN/loom" log 2>&1 | sed 's/^/  /' || true
-  echo "→ the honest witnesses will not cosign the fork, so the victim's client refuses"
-  echo "  the checkpoint (< witness threshold) — the split view is detected (NFR-SEC-5)."
+  echo
+  echo
+  b "an uninvolved client syncs the public history:"
+  "$BIN/loom" log 2>&1 | sed 's/^/  /' || true
+  echo
+  echo "→ the honest witnesses refused to cosign the fork, so the victim's client"
+  echo "  rejects it (1 < 2-of-3 witness threshold) and never trusts the backdoored"
+  echo "  attestation, while everyone else keeps the one public history (NFR-SEC-5)."
 fi
 
 # ---------------------------------------------------------------- audit
