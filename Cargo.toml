@@ -10,7 +10,7 @@ members = [
     "crates/loom-thread",
     "crates/loom-client",
     "crates/loom-cli",
-    "crates/loom-mockaur",
+    "crates/loom-testbed",
     "crates/loom-eval",
 ]
 

@@ -1,7 +1,17 @@
 [package]
 name = "loom-thread"
+description = "Thread: Loom's rebuilder — double reproducible builds under Heddle, signed in-toto attestations submitted to Warp"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 
 [dependencies]
+loom-core.workspace = true
+loom-heddle.workspace = true
+loom-shuttle.workspace = true
+loom-warp.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+anyhow.workspace = true
+tar.workspace = true
+flate2.workspace = true
