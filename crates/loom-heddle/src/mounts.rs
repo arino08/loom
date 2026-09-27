@@ -120,18 +120,20 @@ unsafe fn expose(root: &Path, host: &Path) -> io::Result<()> {
     bind_ro(host, &target)
 }
 
-/// Build the sandbox root and pivot into it. `build_fd_path` is a
-/// `/proc/self/fd/N` path to an O_PATH descriptor of the host build directory
-/// (opened before any mounts, so a build dir under /tmp stays reachable).
+/// Build the sandbox root and pivot into it. `build_fd_path` is the host build
+/// directory path, bound into the sandbox at `/build`.
 ///
 /// # Safety
 /// Must run in a fresh mount namespace in a single-threaded process.
 pub unsafe fn setup(build_fd_path: &Path) -> io::Result<()> {
-    let root = Path::new("/tmp");
     mount(None, Path::new("/"), None, libc::MS_REC | libc::MS_PRIVATE, None)?;
-    // The build dir is reached through `build_fd_path`, opened before /tmp
-    // is covered by the new root.
-    mkdir_p(Path::new("/tmp"))?;
+    // The new root must NOT be an ancestor of the build directory: mounting a
+    // tmpfs over such an ancestor would shadow the host path the build
+    // bind-mount resolves to, failing with EINVAL. A per-process mountpoint
+    // under /tmp is created fresh, so it never contains an existing build dir.
+    let root_buf = std::path::PathBuf::from(format!("/tmp/.loom-root.{}", libc::getpid()));
+    let root = root_buf.as_path();
+    mkdir_p(root)?;
     mount(Some(Path::new("tmpfs")), root, Some("tmpfs"), libc::MS_NOSUID | libc::MS_NODEV, Some("mode=0755"))?;
 
     for d in SYSTEM_READ {
