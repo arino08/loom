@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="72" height="72" role="img" aria-label="Loom">
+  <g fill="none" stroke-width="3" stroke-linecap="round">
+    <path d="M5 1v22M12 1v22M19 1v22" stroke="#4455C7"/>
+    <path d="M1 6h6M10 6h4M17 6h6M1 12h2M8 12h8M21 12h2M1 18h6M10 18h4M17 18h6" stroke="#E0A526"/>
+  </g>
+</svg>
