@@ -780,6 +780,16 @@ dependencies = [
 [[package]]
 name = "loom-eval"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "clap",
+ "loom-core",
+ "loom-heddle",
+ "loom-warp",
+ "loom-weave",
+ "serde",
+ "serde_json",
+]
 
 [[package]]
 name = "loom-heddle"
@@ -820,6 +830,7 @@ dependencies = [
  "loom-core",
  "loom-heddle",
  "loom-warp",
+ "loom-weave",
  "serde",
  "serde_json",
  "sha2",

@@ -1,0 +1,674 @@
+<title>Loom Deployment Console</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,300..900&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root {
+  --bg: #f1f2ee;
+  --surface: #ffffff;
+  --surface-2: #e8eae4;
+  --ink: #19201e;
+  --muted: #5a6560;
+  --faint: #8a948f;
+  --line: #d2d7d0;
+  --accent: #3346a8;
+  --accent-soft: #dfe3f6;
+  --pass: #2b7651;
+  --pass-soft: #dcede3;
+  --warn: #9c6a06;
+  --warn-soft: #f4ead1;
+  --fail: #b0352a;
+  --fail-soft: #f6dfdb;
+  --over: #6d4fb0;
+  --over-soft: #e8e1f5;
+  --t-a: #3b5bdb;
+  --t-b: #0b8a8e;
+  --t-c: #9a4fb8;
+  --sans: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --bg: #0f1413; --surface: #161d1b; --surface-2: #1e2725; --ink: #e3eae6; --muted: #95a39d; --faint: #6b7873;
+    --line: #2b3633; --accent: #93a4ff; --accent-soft: #22294a;
+    --pass: #5cc494; --pass-soft: #173226; --warn: #e2b341; --warn-soft: #3a2f12; --fail: #ff7c6d; --fail-soft: #3d1c18;
+    --over: #b99af0; --over-soft: #2d2442; --t-a: #7d95ff; --t-b: #3cc7c9; --t-c: #c68ce3;
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #0f1413; --surface: #161d1b; --surface-2: #1e2725; --ink: #e3eae6; --muted: #95a39d; --faint: #6b7873;
+  --line: #2b3633; --accent: #93a4ff; --accent-soft: #22294a;
+  --pass: #5cc494; --pass-soft: #173226; --warn: #e2b341; --warn-soft: #3a2f12; --fail: #ff7c6d; --fail-soft: #3d1c18;
+  --over: #b99af0; --over-soft: #2d2442; --t-a: #7d95ff; --t-b: #3cc7c9; --t-c: #c68ce3;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 400 14px/1.5 var(--sans); font-variation-settings: "wdth" 100;
+  padding-inline: 16px; padding-block: 0 48px;
+}
+.wrap { max-width: 1280px; margin: 0 auto; display: grid; gap: 28px; }
+h1, h2, h3 { margin: 0; text-wrap: balance; }
+h2 {
+  font-size: 12px; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted);
+  display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap;
+}
+h2 .sub { font-weight: 400; letter-spacing: 0; text-transform: none; font-size: 13px; color: var(--faint); }
+.mono { font-family: var(--mono); font-size: 12px; }
+.num { font-variant-numeric: tabular-nums; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ---------- header ---------- */
+header.top {
+  display: grid; grid-template-columns: 1fr auto; gap: 16px 24px; align-items: end;
+  padding-block: 28px 20px; border-bottom: 1px solid var(--line);
+}
+.brand { display: grid; gap: 6px; }
+.wordmark {
+  font-size: clamp(40px, 7vw, 68px); line-height: .9; font-weight: 850;
+  font-variation-settings: "wdth" 125; letter-spacing: -.01em; display: flex; align-items: center; gap: 14px;
+}
+.weave-mark { width: .9em; height: .9em; flex: none; }
+.tagline { color: var(--muted); max-width: 62ch; }
+.mode { display: grid; justify-items: end; gap: 8px; }
+.mode-chip {
+  font: 600 11px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase;
+  padding: 7px 10px; border-radius: 3px; border: 1px solid var(--line); display: inline-flex; gap: 8px; align-items: center;
+}
+.mode-chip.live { color: var(--pass); border-color: var(--pass); }
+.mode-chip.snap { color: var(--muted); }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; }
+.live .dot { animation: pulse 1.6s ease-in-out infinite; }
+@keyframes pulse { 50% { opacity: .25; } }
+.services { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+.svc {
+  font: 500 11px/1 var(--mono); padding: 5px 8px; border-radius: 3px; background: var(--surface-2);
+  display: inline-flex; gap: 6px; align-items: center; color: var(--muted);
+}
+.svc.up .dot { background: var(--pass); }
+.svc.down .dot { background: var(--fail); }
+.svc.bad { color: var(--fail); background: var(--fail-soft); }
+
+/* ---------- vitals ---------- */
+.vitals { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.vital { background: var(--surface); padding: 14px 16px; display: grid; gap: 4px; align-content: start; }
+.vital .k { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.vital .v { font-size: 30px; font-weight: 800; font-variation-settings: "wdth" 112; line-height: 1.05; }
+.vital .d { font-size: 12px; color: var(--muted); }
+.v.pass { color: var(--pass); } .v.fail { color: var(--fail); } .v.warn { color: var(--warn); }
+
+/* ---------- panels ---------- */
+.panel { background: var(--surface); border: 1px solid var(--line); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.grid-2 { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 960px) { .grid-2 { grid-template-columns: 1fr; } header.top { grid-template-columns: 1fr; } .mode { justify-items: start; } .services { justify-content: flex-start; } }
+.scroll-x { overflow-x: auto; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12px; color: var(--muted); }
+.legend span { display: inline-flex; align-items: center; gap: 6px; }
+.sw { width: 10px; height: 10px; border-radius: 2px; display: inline-block; }
+
+/* ---------- topology ---------- */
+#topo svg { width: 100%; min-width: 720px; max-width: 1100px; height: auto; display: block; margin-inline: auto; }
+.edge { stroke: var(--line); stroke-width: 2; fill: none; }
+.edge.flow { stroke: var(--accent); stroke-dasharray: 5 7; animation: flow 1.1s linear infinite; }
+.edge.bad { stroke: var(--fail); stroke-dasharray: 3 5; }
+@keyframes flow { to { stroke-dashoffset: -24; } }
+.node rect { fill: var(--surface-2); stroke: var(--line); stroke-width: 1.5; }
+.node.up rect { stroke: var(--pass); }
+.node.down rect { stroke: var(--fail); stroke-dasharray: 4 3; }
+.node.bad rect { fill: var(--fail-soft); stroke: var(--fail); }
+.node text { fill: var(--ink); font: 600 13px var(--sans); }
+.node text.s { fill: var(--muted); font: 400 10.5px var(--mono); }
+.node.bad text { fill: var(--fail); }
+.elabel { fill: var(--faint); font: 400 10.5px var(--mono); }
+
+/* ---------- matrix ---------- */
+table { border-collapse: collapse; width: 100%; }
+.matrix th, .matrix td { padding: 8px 10px; border-bottom: 1px solid var(--line); text-align: left; vertical-align: middle; }
+.matrix thead th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.matrix thead th small { display: block; letter-spacing: 0; text-transform: none; font: 400 10.5px var(--mono); color: var(--faint); }
+.matrix td.sc { font-weight: 600; min-width: 220px; }
+.matrix td.sc .n { font: 600 11px var(--mono); color: var(--faint); margin-right: 6px; }
+.cell { display: inline-flex; align-items: center; gap: 6px; font: 600 11px/1 var(--mono); padding: 5px 7px; border-radius: 3px; white-space: nowrap; }
+.cell.caught { background: var(--fail); color: var(--surface); }
+.cell.caught-alt { background: var(--fail-soft); color: var(--fail); }
+.cell.over { background: var(--over-soft); color: var(--over); }
+.cell.warn { background: var(--warn-soft); color: var(--warn); }
+.cell.ok { color: var(--pass); }
+.cell.none { color: var(--line); }
+.outcome-col { white-space: nowrap; }
+
+/* ---------- scenarios ---------- */
+.scenarios { display: grid; gap: 12px; }
+.scn { border: 1px solid var(--line); background: var(--surface); }
+.scn > summary { list-style: none; cursor: pointer; padding: 14px 16px; display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: baseline; }
+.scn > summary::-webkit-details-marker { display: none; }
+.scn > summary .n { font: 700 12px var(--mono); color: var(--accent); }
+.scn > summary h3 { font-size: 16px; font-weight: 700; font-variation-settings: "wdth" 105; }
+.scn > summary .chev { color: var(--faint); font: 400 12px var(--mono); }
+.scn[open] > summary .chev::before { content: "hide"; }
+.scn:not([open]) > summary .chev::before { content: "show"; }
+.scn-body { padding: 0 16px 16px; display: grid; gap: 12px; }
+.verdicts { display: grid; gap: 8px; }
+.verdict { display: grid; grid-template-columns: auto 1fr; gap: 4px 12px; align-items: baseline; padding: 10px 12px; background: var(--surface-2); border-left: 3px solid var(--line); }
+.verdict.block { border-left-color: var(--fail); }
+.verdict.allow { border-left-color: var(--pass); }
+.verdict.warn { border-left-color: var(--warn); }
+.verdict .what { font-weight: 600; }
+.verdict .what .cmd { font: 400 11.5px var(--mono); color: var(--muted); margin-left: 6px; }
+.verdict .rules { grid-column: 2; display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+.verdict .rules b { color: var(--ink); font-weight: 600; }
+.pill { font: 700 10.5px/1 var(--mono); letter-spacing: .06em; padding: 5px 7px; border-radius: 3px; white-space: nowrap; }
+.pill.block { background: var(--fail); color: var(--surface); }
+.pill.allow { background: var(--pass); color: var(--surface); }
+.pill.warn { background: var(--warn); color: var(--surface); }
+.st { font: 700 10px/1 var(--mono); padding: 3px 5px; border-radius: 2px; margin-right: 6px; }
+.st.fail { background: var(--fail-soft); color: var(--fail); }
+.st.warn { background: var(--warn-soft); color: var(--warn); }
+.st.overridden { background: var(--over-soft); color: var(--over); }
+.denials { font: 400 11.5px var(--mono); color: var(--fail); }
+.rebuilds { display: grid; gap: 3px; font: 400 12px var(--mono); }
+.rb { display: grid; grid-template-columns: 78px minmax(120px, auto) 96px 110px 1fr; gap: 10px; align-items: baseline; }
+.rb .who { font-weight: 600; }
+.rb .note { color: var(--muted); overflow-wrap: anywhere; }
+.rb .note.bad { color: var(--fail); }
+@media (max-width: 640px) { .rb { grid-template-columns: 70px 1fr; } .rb .note { grid-column: 1 / -1; } }
+.oc-reproducible { color: var(--pass); } .oc-buildfailed, .oc-unreproducible { color: var(--fail); }
+.event-line { font: 400 12px var(--mono); color: var(--muted); }
+.event-line.bad { color: var(--fail); }
+.conclusion { font-size: 14.5px; line-height: 1.55; padding: 10px 14px; border: 1px solid var(--accent); background: var(--accent-soft); max-width: 90ch; }
+.conclusion::before { content: "Takeaway"; display: block; font: 700 10.5px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--accent); margin-bottom: 2px; }
+
+/* ---------- log ---------- */
+.loom-strip { display: grid; gap: 10px; }
+.row-label { font: 600 11px var(--mono); color: var(--muted); display: flex; gap: 10px; flex-wrap: wrap; align-items: baseline; }
+.row-label .bad { color: var(--fail); }
+.threads { display: flex; gap: 3px; align-items: stretch; min-height: 72px; }
+.thr { width: 14px; flex: none; border-radius: 2px; position: relative; background: var(--c); }
+.thr.failed { background: repeating-linear-gradient(135deg, var(--c) 0 3px, transparent 3px 6px); border: 1px solid var(--c); }
+.thr.ghost { opacity: .22; }
+.thr.evil { background: var(--fail); box-shadow: 0 0 0 2px var(--fail-soft); }
+.thr.rev { background: var(--surface-2); border: 1px dashed var(--muted); }
+.thr:hover { outline: 2px solid var(--ink); outline-offset: 1px; }
+.weft { height: 6px; background: repeating-linear-gradient(90deg, var(--muted) 0 8px, transparent 8px 11px); opacity: .5; }
+.cp { display: grid; grid-template-columns: auto 1fr; gap: 2px 14px; font: 400 12px var(--mono); }
+.cp dt { color: var(--muted); }
+.cp dd { margin: 0; overflow-wrap: anywhere; }
+.badge { font: 600 11px/1 var(--mono); padding: 4px 6px; border-radius: 3px; background: var(--pass-soft); color: var(--pass); margin-right: 4px; display: inline-block; }
+.badge.bad { background: var(--fail-soft); color: var(--fail); }
+.pkgs { display: flex; flex-wrap: wrap; gap: 4px 10px; font: 400 11.5px var(--mono); color: var(--muted); }
+
+/* ---------- sandbox ---------- */
+.contrast { display: grid; grid-template-columns: 1fr 1fr; gap: 1px; background: var(--line); border: 1px solid var(--line); }
+.contrast > div { background: var(--surface); padding: 14px; display: grid; gap: 4px; }
+.contrast .big { font-size: 44px; font-weight: 850; font-variation-settings: "wdth" 115; line-height: 1; }
+.contrast .conf .big { color: var(--pass); }
+.contrast .unconf .big { color: var(--fail); }
+.contrast .k { font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.hits { font: 400 11.5px var(--mono); color: var(--fail); overflow-wrap: anywhere; }
+
+/* ---------- eval ---------- */
+.bars { display: grid; gap: 6px; }
+.bar { display: grid; grid-template-columns: 110px 1fr 40px; gap: 10px; align-items: center; font-size: 12.5px; }
+.bar .track { height: 12px; background: var(--surface-2); position: relative; }
+.bar .fill { position: absolute; inset: 0 auto 0 0; background: var(--accent); }
+.bar .ct { font: 600 12px var(--mono); text-align: right; }
+.cases td, .cases th { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: left; font-size: 12.5px; vertical-align: top; }
+.cases th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.chip { font: 600 10.5px/1 var(--mono); padding: 3px 6px; border-radius: 2px; background: var(--accent-soft); color: var(--accent); margin-right: 4px; display: inline-block; }
+.ac { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 8px; }
+.ac div { padding: 10px; background: var(--surface-2); display: grid; gap: 2px; }
+.ac .k { font: 600 11px var(--mono); color: var(--muted); }
+.ac .v { font-weight: 700; }
+.ac .v.pass { color: var(--pass); } .ac .v.fail { color: var(--fail); }
+
+/* ---------- journal ---------- */
+.journal { max-height: 340px; overflow: auto; font: 400 12px/1.6 var(--mono); background: var(--surface-2); padding: 10px 12px; }
+.journal div { display: grid; grid-template-columns: 70px 90px 1fr; gap: 10px; }
+.journal .t { color: var(--faint); }
+.journal .kd { color: var(--accent); }
+.journal .bad { color: var(--fail); }
+.empty { color: var(--muted); font-style: italic; }
+footer { color: var(--faint); font-size: 12px; border-top: 1px solid var(--line); padding-top: 14px; }
+@media (prefers-reduced-motion: reduce) { .edge.flow, .live .dot { animation: none; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <div class="wordmark" aria-label="Loom">
+        <svg class="weave-mark" viewBox="0 0 24 24" aria-hidden="true">
+          <g fill="none" stroke-width="3">
+            <path d="M5 1v22M12 1v22M19 1v22" stroke="var(--accent)"/>
+            <path d="M1 6h6M10 6h4M17 6h6M1 12h2M8 12h8M21 12h2M1 18h6M10 18h4M17 18h6" stroke="var(--ink)"/>
+          </g>
+        </svg>
+        LOOM
+      </div>
+      <div class="tagline">A decentralised, verifying package manager for the AUR. This console shows a complete deployment running on loopback: mock AUR, three rebuilders, the Warp transparency log, three witnesses and the client.</div>
+    </div>
+    <div class="mode">
+      <span id="mode" class="mode-chip snap"><span class="dot"></span><span id="mode-text">Loading</span></span>
+      <div class="services" id="services"></div>
+    </div>
+  </header>
+
+  <section class="vitals" id="vitals" aria-label="Deployment summary"></section>
+
+  <section class="panel" id="topo-panel">
+    <h2>Deployment <span class="sub">who talks to whom</span></h2>
+    <div class="scroll-x" id="topo"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Warp transparency log <span class="sub">one thread per signed record, woven together by witness cosignatures</span></h2>
+    <div id="log"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Defence matrix <span class="sub">which mechanism fired in each scenario of this run</span></h2>
+    <div class="scroll-x" id="matrix"></div>
+  </section>
+
+  <section class="grid-2">
+    <div class="panel">
+      <h2>Heddle sandbox <span class="sub">the same malicious build, twice</span></h2>
+      <div id="sandbox"></div>
+    </div>
+    <div class="panel">
+      <h2>Acceptance criteria <span class="sub">loom-eval over the labelled incident corpus</span></h2>
+      <div id="eval"></div>
+    </div>
+  </section>
+
+  <section class="panel">
+    <h2>Scenarios <span class="sub">what happened, step by step</span></h2>
+    <div class="scenarios" id="scenarios"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Event journal <span class="sub">every decision, rebuild and log sync, in order</span></h2>
+    <div class="journal" id="journal"></div>
+  </section>
+
+  <footer id="footer">Everything here is inert: the "malicious" fixtures read a planted decoy and ping a local sink. Nothing leaves the machine. The console decodes log records for display only; the <span class="mono">loom</span> client verifies every checkpoint, cosignature and inclusion proof itself.</footer>
+</div>
+
+<script>
+const SNAPSHOT = /*__LOOM_SNAPSHOT__*/null;
+
+const MECH = [
+  { id: "continuity", title: "Continuity", req: "FR-8.x", rules: ["continuity"] },
+  { id: "quarantine", title: "Quarantine", req: "FR-7.x", rules: ["quarantine"] },
+  { id: "rebuilds", title: "k-of-n rebuilds", req: "FR-6.x", rules: ["contradiction"] },
+  { id: "sandbox", title: "Heddle sandbox", req: "FR-3.x", rules: ["sandbox"] },
+  { id: "placement", title: "Placement", req: "audit A4", rules: ["placement"] },
+  { id: "log", title: "Warp witnesses", req: "FR-5.x", rules: ["log"] },
+];
+const THREAD_VAR = { "thread-a": "var(--t-a)", "thread-b": "var(--t-b)", "thread-c": "var(--t-c)" };
+
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const hhmm = (ts) => ts ? new Date(ts * 1000).toISOString().slice(11, 19) : "";
+const when = (ts) => ts ? new Date(ts * 1000).toISOString().replace("T", " ").slice(0, 16) + " UTC" : "";
+const short = (s, n = 12) => (s || "").slice(0, n);
+const verdictClass = (o) => o === "block" ? "block" : o === "allow" ? "allow" : "warn";
+const verdictText = (o) => o === "block" ? "BLOCKED" : o === "allow" ? "ALLOWED" : "ALLOWED · WARNINGS";
+
+function scenarios(events) {
+  const out = [];
+  let cur = { n: "0", title: "Setup: provision, start services, prime the log", events: [] };
+  for (const e of events) {
+    if (e.kind === "scenario") {
+      if (cur.events.length || out.length) out.push(cur);
+      const m = /^(\d+)\.\s*(.*)$/.exec(e.text || "");
+      cur = { n: m ? m[1] : "?", title: m ? m[2] : e.text, events: [] };
+    } else cur.events.push(e);
+  }
+  out.push(cur);
+  return out.filter((s) => s.n !== "0" || s.events.length);
+}
+
+// One cell per mechanism: did it fire in this scenario, and how?
+function matrixRow(sc) {
+  const cells = {};
+  const set = (id, v) => {
+    const rank = { caught: 5, "caught-alt": 4, over: 3, warn: 2, ok: 1 };
+    if (!cells[id] || rank[v.cls] > rank[cells[id].cls]) cells[id] = v;
+  };
+  for (const e of sc.events) {
+    if (e.kind === "decision") {
+      const unconf = e.sandbox_backend === "unconfined-demo";
+      for (const r of e.decision.rules) {
+        const m = MECH.find((m) => m.rules.includes(r.id));
+        if (!m) continue;
+        if (r.status === "fail") set(m.id, { cls: "caught", text: "blocked " + e.decision.package });
+        else if (r.status === "overridden") set(m.id, { cls: "over", text: "overridden" });
+        else if (r.status === "warn") set(m.id, { cls: "warn", text: unconf && r.id === "sandbox" ? "unconfined" : "warning" });
+        else if (r.status === "pass") set(m.id, { cls: "ok", text: "passed" });
+      }
+    } else if (e.kind === "rebuild" && (e.note || "").startsWith("refused")) {
+      set("sandbox", { cls: "caught-alt", text: "rebuilders refused" });
+    } else if (e.kind === "log") {
+      if (e.ok === false) set("log", { cls: "caught", text: "fork rejected" });
+      else set("log", { cls: "ok", text: "verified" });
+    }
+  }
+  return cells;
+}
+
+function outcomeSummary(sc) {
+  const ds = sc.events.filter((e) => e.kind === "decision");
+  const blocked = ds.filter((e) => e.decision.outcome === "block").length;
+  const logFail = sc.events.some((e) => e.kind === "log" && e.ok === false);
+  if (logFail) return '<span class="pill block">FORK REJECTED</span>';
+  if (!ds.length) return '<span class="event-line">no client decision</span>';
+  if (blocked) return `<span class="pill block">${blocked} BLOCKED</span> <span class="event-line">of ${ds.length}</span>`;
+  return `<span class="pill allow">${ds.length} ALLOWED</span>`;
+}
+
+function renderServices(st, attack) {
+  const html = st.services.map((s) => {
+    const bad = attack && s.id === attack.corrupt_witness;
+    return `<span class="svc ${s.up ? "up" : "down"} ${bad ? "bad" : ""}" title="${esc(s.url)}"><span class="dot"></span>${esc(s.label)}${bad ? " · corrupt" : ""}</span>`;
+  }).join("");
+  document.getElementById("services").innerHTML = html;
+}
+
+function renderVitals(st, scs, attack) {
+  const log = st.log || {};
+  const decisions = st.events.filter((e) => e.kind === "decision");
+  const blocked = decisions.filter((e) => e.decision.outcome === "block").length;
+  const installed = st.installed && typeof st.installed === "object" ? Object.keys(st.installed).length : 0;
+  const sink = st.events.filter((e) => e.kind === "sink").pop();
+  const ev = st.eval || {};
+  const e1 = ev.E1_attack_replay;
+  const tiles = [
+    { k: "Log size", v: log.up ? log.size : "down", cls: log.up ? "" : "fail", d: log.up ? `${(log.cosigners || []).length} of ${st.witnesses.length} witnesses cosigned the head` : esc(log.error || "") },
+    { k: "Client decisions", v: decisions.length, d: `${blocked} blocked · ${decisions.length - blocked} allowed` },
+    { k: "Installed", v: installed, d: "every one by content address" },
+    { k: "Sink hits, confined", v: sink ? sink.confined : "–", cls: sink ? (sink.confined ? "fail" : "pass") : "", d: sink ? `unconfined, the same build: ${sink.unconfined}` : "sandbox scenario not run yet" },
+    { k: "Attack replay (AC-1)", v: e1 ? `${e1.blocked}/${e1.malicious}` : "–", cls: e1 ? (e1.ac1_pass ? "pass" : "fail") : "", d: e1 ? `malicious cases blocked · ${ev.all_acceptance_criteria_pass ? "all checked ACs pass" : "some ACs fail"}` : "run the full demo for eval results" },
+  ];
+  if (attack) tiles.push({ k: "Split view", v: st.fork ? "active" : "armed", cls: "fail", d: `${esc(attack.corrupt_witness)} corrupted; victim client "${esc(attack.victim)}"` });
+  document.getElementById("vitals").innerHTML = tiles.map((t) =>
+    `<div class="vital"><span class="k">${t.k}</span><span class="v num ${t.cls || ""}">${esc(t.v)}</span><span class="d">${t.d}</span></div>`).join("");
+}
+
+function renderTopo(st, attack, fresh) {
+  const up = (id) => (st.services.find((s) => s.id === id) || {}).up;
+  const node = (x, y, w, h, title, sub, cls) =>
+    `<g class="node ${cls}" transform="translate(${x - w / 2},${y - h / 2})"><rect width="${w}" height="${h}" rx="4"/>` +
+    `<text x="12" y="${h / 2 - 2}">${esc(title)}</text><text class="s" x="12" y="${h / 2 + 13}">${esc(sub)}</text></g>`;
+  const splitView = !!attack;
+  const threads = ["thread-a", "thread-b", "thread-c"];
+  const ty = [60, 150, 240];
+  let edges = "";
+  threads.forEach((t, i) => {
+    edges += `<path class="edge ${fresh.has(t) ? "flow" : ""}" d="M140 150 C195 150 190 ${ty[i]} 245 ${ty[i]}"/>`;
+    edges += `<path class="edge ${fresh.has(t) ? "flow" : ""}" d="M395 ${ty[i]} C450 ${ty[i]} 450 130 505 130"/>`;
+  });
+  ty.forEach((y, i) => {
+    const bad = attack && attack.corrupt_witness === `witness-${i + 1}`;
+    edges += `<path class="edge ${bad ? "bad" : fresh.has("log") ? "flow" : ""}" d="M655 130 C715 130 715 ${y} 775 ${y}"/>`;
+  });
+  edges += `<path class="edge ${fresh.has("client") ? "flow" : ""}" d="M580 158 L580 239"/>`;
+  edges += `<path class="edge" d="M320 263 C360 290 440 285 495 270" stroke-dasharray="2 5"/>`;
+  let nodes = node(80, 150, 120, 50, "Mock AUR", "recipes · :7700", up("aur") ? "up" : "down");
+  threads.forEach((t, i) => nodes += node(320, ty[i], 150, 46, t, `rebuilder · peer :773${i + 1}`, up(`peer-${t}`) ? "up" : "down"));
+  nodes += node(580, 130, 150, 56, "Warp log", splitView ? "SPLIT-VIEW MODE" : `size ${st.log.size ?? "?"} · :7710`, splitView ? "bad" : up("warp") ? "up" : "down");
+  [1, 2, 3].forEach((i) => {
+    const id = `witness-${i}`;
+    const bad = attack && attack.corrupt_witness === id;
+    const lt = (st.witnesses[i - 1] || {}).latest;
+    nodes += node(850, ty[i - 1], 150, 46, id, bad ? "CORRUPT · signs all" : `cosigned ${lt ? lt.size : "–"} · :772${i}`, bad ? "bad" : up(id) ? "up" : "down");
+  });
+  nodes += node(580, 262, 170, 46, "loom client", "verifies, then installs", "up");
+  const labels = `<text class="elabel" x="150" y="138">recipes</text><text class="elabel" x="408" y="100">attestations</text>` +
+    `<text class="elabel" x="664" y="116">checkpoints</text><text class="elabel" x="590" y="205">verified log</text>` +
+    `<text class="elabel" x="352" y="296">artifacts by hash</text>`;
+  document.getElementById("topo").innerHTML =
+    `<svg viewBox="0 0 940 305" role="img" aria-label="Deployment topology">${edges}${labels}${nodes}</svg>`;
+}
+
+function threadStrip(entries, opts = {}) {
+  return `<div class="threads">` + entries.map((e) => {
+    if (e.kind === "revocation") return `<span class="thr rev" title="#${e.index} revocation of #${e.target}: ${esc(e.reason)}"></span>`;
+    const failed = e.outcome !== "reproducible";
+    const evil = opts.divergeFrom != null && e.index >= opts.divergeFrom;
+    const ghost = opts.ghostBelow != null && e.index < opts.ghostBelow;
+    const tip = `#${e.index} ${e.rebuilder} · ${e.package} ${e.version} · ${e.outcome}${e.artifact ? " · " + e.artifact : ""} · commit ${e.commit} · maintainer ${e.maintainer || "(orphaned)"}`;
+    return `<span class="thr ${failed ? "failed" : ""} ${evil ? "evil" : ""} ${ghost ? "ghost" : ""}" style="--c:${THREAD_VAR[e.rebuilder] || "var(--muted)"}" title="${esc(tip)}"></span>`;
+  }).join("") + `</div>`;
+}
+
+function renderLog(st, attack) {
+  const log = st.log;
+  if (!log || !log.up) {
+    document.getElementById("log").innerHTML = `<p class="empty">The log is not reachable${log && log.error ? ": " + esc(log.error) : ""}.</p>`;
+    return;
+  }
+  const entries = log.entries || [];
+  const pkgs = {};
+  for (const e of entries) if (e.package) pkgs[e.package] = (pkgs[e.package] || 0) + 1;
+  let html = `<div class="loom-strip">
+    <div class="row-label"><span>PUBLIC HISTORY</span><span>${entries.length} records</span></div>
+    <div class="scroll-x">${threadStrip(entries)}</div>
+    <div class="weft" aria-hidden="true"></div>
+    <dl class="cp">
+      <dt>origin</dt><dd>${esc(log.origin)}</dd>
+      <dt>size</dt><dd class="num">${log.size}</dd>
+      <dt>root</dt><dd>${esc(log.root)}</dd>
+      <dt>cosigned</dt><dd>${(log.cosigners || []).map((c) => `<span class="badge ${attack && attack.corrupt_witness === c ? "bad" : ""}">${esc(c)}</span>`).join("") || "<span class='badge bad'>none</span>"}</dd>
+    </dl>`;
+  const fork = st.fork;
+  if (fork && fork.entries) {
+    // First index at which the victim's view differs from the public one.
+    let d = 0;
+    while (d < fork.entries.length && d < entries.length && JSON.stringify(fork.entries[d]) === JSON.stringify(entries[d])) d++;
+    const vl = st.events.filter((e) => e.kind === "log" && e.client === fork.victim).pop();
+    html += `<div class="row-label" style="margin-top:8px"><span class="bad">VICTIM'S FORKED VIEW</span><span>diverges at #${d}</span>
+      ${vl && vl.ok === false ? '<span class="pill block">REJECTED BY CLIENT</span>' : ""}</div>
+      <div class="scroll-x">${threadStrip(fork.entries, { divergeFrom: d, ghostBelow: d })}</div>
+      <dl class="cp"><dt>size</dt><dd class="num">${fork.size}</dd><dt>root</dt><dd>${esc(fork.root)}</dd>
+      <dt>cosigned</dt><dd>${(fork.cosigners || []).map((c) => `<span class="badge bad">${esc(c)}</span>`).join("") || "<span class='badge bad'>none</span>"} <span class="event-line">threshold is 2 of 3</span></dd></dl>`;
+  }
+  html += `<div class="legend">
+      <span><i class="sw" style="background:var(--t-a)"></i>thread-a</span>
+      <span><i class="sw" style="background:var(--t-b)"></i>thread-b</span>
+      <span><i class="sw" style="background:var(--t-c)"></i>thread-c</span>
+      <span><i class="sw" style="background:repeating-linear-gradient(135deg,var(--muted) 0 2px,transparent 2px 4px);border:1px solid var(--muted)"></i>refused / failed build</span>
+      ${fork ? '<span><i class="sw" style="background:var(--fail)"></i>fork-only record</span>' : ""}
+    </div>
+    <div class="pkgs">${Object.entries(pkgs).map(([p, n]) => `<span>${esc(p)} ×${n}</span>`).join("")}</div>
+  </div>`;
+  document.getElementById("log").innerHTML = html;
+}
+
+function renderMatrix(scs) {
+  const rows = scs.filter((s) => s.n !== "0").map((sc) => {
+    const cells = matrixRow(sc);
+    return `<tr><td class="sc"><span class="n">${esc(sc.n)}</span>${esc(sc.title)}</td>` +
+      MECH.map((m) => {
+        const c = cells[m.id];
+        return `<td>${c ? `<span class="cell ${c.cls}">${c.cls === "ok" ? "✓ " : ""}${esc(c.text)}</span>` : '<span class="cell none">·</span>'}</td>`;
+      }).join("") + `<td class="outcome-col">${outcomeSummary(sc)}</td></tr>`;
+  });
+  document.getElementById("matrix").innerHTML = rows.length
+    ? `<table class="matrix"><thead><tr><th>Scenario</th>${MECH.map((m) => `<th>${m.title}<small>${m.req}</small></th>`).join("")}<th>Result</th></tr></thead><tbody>${rows.join("")}</tbody></table>
+       <div class="legend" style="margin-top:10px"><span><span class="cell caught">blocked</span> this check stopped the package</span><span><span class="cell caught-alt">rebuilders refused</span> no rebuilder would attest it</span><span><span class="cell over">overridden</span> user accepted the alarm</span><span><span class="cell ok">✓ passed</span> checked, fine</span></div>`
+    : '<p class="empty">No scenarios have run yet.</p>';
+}
+
+function decisionHtml(e) {
+  const d = e.decision;
+  const oc = verdictClass(d.outcome);
+  const notable = d.rules.filter((r) => ["fail", "warn", "overridden"].includes(r.status));
+  const unconf = e.sandbox_backend === "unconfined-demo";
+  const denials = e.build && e.build.denials && e.build.denials.length
+    ? `<div class="denials">${e.build.denials.map((x) => `denied ${esc(x.syscall)} ${esc(x.resource)} [${esc(x.requirement)}]`).join("<br>")}</div>` : "";
+  const origin = e.origin ? `<div class="event-line">artifact ${esc(d.target ? d.target.replace(/^sha256:/, "").slice(0, 12) : "")} from ${esc(e.origin)}${e.installed ? " · installed" : ""}</div>` : "";
+  return `<div class="verdict ${oc}">
+    <span class="pill ${oc}">${verdictText(d.outcome)}</span>
+    <span class="what">${esc(d.package)} ${esc(d.version)}<span class="cmd">loom ${esc(e.command)}${unconf ? " · UNCONFINED DEMO" : ""}${e.client ? " · client " + esc(e.client) : ""} · ${esc(d.stage)}</span></span>
+    <div class="rules">${notable.map((r) => `<div><span class="st ${r.status}">${r.status.toUpperCase()}</span><b>${esc(r.title)}</b> — ${esc(r.summary)}</div>`).join("") || `<div>${d.rules.filter((r) => r.status === "pass").length} checks passed · ${d.independent_support} independent attestations</div>`}
+    ${denials}${origin}</div></div>`;
+}
+
+function rebuildHtml(rbs) {
+  return `<div class="rebuilds">` + rbs.map((e) => {
+    const refused = (e.note || "").startsWith("refused");
+    const tags = [e.into_fork ? "→ victim's fork only" : "", e.tamper ? "compromised pipeline" : ""].filter(Boolean).join(" · ");
+    return `<div class="rb"><span class="who" style="color:${THREAD_VAR[e.rebuilder] || "inherit"}">${esc(e.rebuilder)}</span>
+      <span>${esc(e.package)} ${esc(e.version)}</span><span class="oc-${esc(e.outcome)}">${esc(e.outcome)}</span>
+      <span>${esc(e.artifact || "—")}${e.log_index != null ? " #" + e.log_index : ""}</span>
+      <span class="note ${refused || tags ? "bad" : ""}">${esc([tags, e.note].filter(Boolean).join(" · "))}</span></div>`;
+  }).join("") + `</div>`;
+}
+
+function renderScenarios(scs) {
+  const box = document.getElementById("scenarios");
+  const open = new Set([...box.querySelectorAll("details[open]")].map((d) => d.dataset.n));
+  const first = !box.children.length;
+  box.innerHTML = scs.map((sc) => {
+    const parts = [];
+    let rbs = [];
+    const flush = () => { if (rbs.length) { parts.push(rebuildHtml(rbs)); rbs = []; } };
+    for (const e of sc.events) {
+      if (e.kind === "rebuild") { rbs.push(e); continue; }
+      flush();
+      if (e.kind === "decision") parts.push(decisionHtml(e));
+      else if (e.kind === "publish") parts.push(`<div class="event-line">AUR: ${esc(e.maintainer)} published ${esc(e.package)} ${esc(e.version)}${e.rewrite ? " with history REWRITTEN (force-push)" : ""} → ${esc(e.commit)}</div>`);
+      else if (e.kind === "advisories") parts.push(`<div class="event-line">advisory feed: ${e.advisories.map((a) => esc(`${a.name} ${a.packages.join(",")} fixed in ${a.fixed} (${(a.issues || []).join(", ")})`)).join("; ")}</div>`);
+      else if (e.kind === "log") parts.push(e.ok
+        ? `<div class="event-line">log sync${e.client ? " as " + esc(e.client) : ""}: size ${e.size}, cosigned by ${esc(e.cosigners.join(", "))}</div>`
+        : `<div class="event-line bad">log sync${e.client ? " as " + esc(e.client) : ""} REFUSED: ${esc(e.error)}</div>`);
+      else if (e.kind === "attack") parts.push(`<div class="event-line bad">attack: ${esc(e.text)}</div>`);
+      else if (e.kind === "sink") parts.push(`<div class="event-line">network sink hits: confined ${e.confined}, unconfined ${e.unconfined}</div>`);
+      else if (e.kind === "audit") {
+        const r = e.report || {};
+        parts.push(`<div class="scroll-x"><table class="cases"><thead><tr><th>Installed</th><th>Version</th><th>Attestations</th><th>Continuity</th></tr></thead><tbody>${
+          (r.packages || []).map((p) => `<tr><td class="mono">${esc(p.name)}</td><td class="mono">${esc(p.version)}</td><td class="mono">${p.independent_attestations} ${p.covered ? "✓" : "✗"}</td><td class="${p.continuity.startsWith("CHANGED") ? "denials" : ""}">${esc(p.continuity)}</td></tr>`).join("")
+        }</tbody></table></div><div class="event-line">provenance coverage ${esc(r.covered)}/${esc(r.total)} (${Math.round(r.coverage_percent || 0)}%) · log ${esc(r.log)}</div>`);
+      } else if (e.kind === "conclusion") { /* rendered last */ }
+    }
+    flush();
+    const concl = sc.events.filter((e) => e.kind === "conclusion").map((e) => `<div class="conclusion">${esc(e.text)}</div>`).join("");
+    const isOpen = first ? sc.n !== "0" : open.has(sc.n);
+    return `<details class="scn" data-n="${esc(sc.n)}" ${isOpen ? "open" : ""}>
+      <summary><span class="n">${sc.n === "0" ? "··" : String(sc.n).padStart(2, "0")}</span><h3>${esc(sc.title)}</h3><span class="chev"></span></summary>
+      <div class="scn-body">${parts.join("")}${concl}</div></details>`;
+  }).join("") || '<p class="empty">Waiting for demo/run.sh to start a scenario.</p>';
+}
+
+function renderSandbox(st) {
+  const sink = st.events.filter((e) => e.kind === "sink").pop();
+  const confined = st.events.filter((e) => e.kind === "decision" && e.build && e.sandbox_backend !== "unconfined-demo" && e.build.denials.length).pop();
+  const refusals = st.events.filter((e) => e.kind === "rebuild" && (e.note || "").startsWith("refused"));
+  const hits = (st.aur && st.aur.sink_hits) || [];
+  let html = "";
+  if (sink) {
+    html += `<div class="contrast">
+      <div class="conf"><span class="k">Confined by Heddle</span><span class="big num">${sink.confined}</span><span class="event-line">sink hits · namespaces + Landlock + seccomp</span></div>
+      <div class="unconf"><span class="k">Unconfined, like a plain AUR helper</span><span class="big num">${sink.unconfined}</span><span class="event-line">sink hits · the payload phoned home</span></div>
+    </div>`;
+  } else html += `<p class="empty">The confined-vs-unconfined contrast (scenario 7) has not run yet.</p>`;
+  if (confined) html += `<div><div class="row-label">DENIED UNDER HEDDLE (${esc(confined.decision.package)} ${esc(confined.decision.version)}, tier ${esc(confined.build.tier)})</div>
+    <div class="denials">${confined.build.denials.map((x) => `${esc(x.syscall)} ${esc(x.resource)} — ${esc(x.rule)} (${esc(x.requirement)})`).join("<br>")}</div></div>`;
+  if (refusals.length) html += `<div class="event-line">${refusals.length} rebuild(s) refused to attest a build that reached for credentials or the network.</div>`;
+  if (hits.length) html += `<div><div class="row-label">WHAT REACHED THE SINK</div><div class="hits">${hits.map(esc).join("<br>")}</div></div>`;
+  document.getElementById("sandbox").innerHTML = html;
+}
+
+function renderEval(st) {
+  const ev = st.eval;
+  if (!ev || !ev.E1_attack_replay) {
+    document.getElementById("eval").innerHTML = `<p class="empty">No harness results yet. The full demo runs <span class="mono">loom-eval --json</span> at the end.</p>`;
+    return;
+  }
+  const e1 = ev.E1_attack_replay, e2 = ev.E2_false_positives, e4 = ev.E4_ablation, e5 = ev.E5_overhead, e6 = ev.E6_log_integrity;
+  const catches = e4.catches || {};
+  const max = Math.max(1, e4.total_malicious_blocked);
+  const ac = [
+    ["AC-1 attack replay", `${e1.blocked}/${e1.malicious} blocked`, e1.ac1_pass],
+    ["AC-2 false positives", `${e2.blocked}/${e2.benign} blocked`, e2.ac2_pass],
+    ["AC-4 ablation", `best single ${e4.best_single_mechanism_catches}/${e4.total_malicious_blocked}`, e4.ac4_pass],
+    ["AC-5 decision", `${e5.policy_decision_ms.toFixed(3)} ms < 500`, e5.nfr_perf_1_pass],
+    ["AC-5 verify", `${e5.attestation_verify_ms.toFixed(2)} ms < 100`, e5.nfr_perf_3_pass],
+    ["AC-6 split view", `${e6.detected}/${e6.trials} detected`, e6.ac6_pass],
+  ];
+  let html = `<div class="ac">${ac.map(([k, v, p]) => `<div><span class="k">${k}</span><span class="v ${p ? "pass" : "fail"}">${p ? "✓" : "✗"} ${esc(v)}</span></div>`).join("")}</div>`;
+  html += `<div><div class="row-label">MALICIOUS CASES CAUGHT, PER MECHANISM</div><div class="bars">${
+    Object.entries(catches).sort((a, b) => b[1].length - a[1].length).map(([m, v]) =>
+      `<div class="bar"><span>${esc(m)}</span><span class="track"><span class="fill" style="width:${(100 * v.length / max).toFixed(1)}%"></span></span><span class="ct">${v.length}/${max}</span></div>`).join("")
+  }</div><div class="event-line" style="margin-top:6px">No mechanism catches everything; each one is the only catcher for some attack.</div></div>`;
+  html += `<div class="scroll-x"><table class="cases"><thead><tr><th>Case</th><th>Modelled on</th><th>Caught by</th></tr></thead><tbody>${
+    (e1.cases || []).map((c) => `<tr><td class="mono">${esc(c.name)}</td><td>${esc(c.incident)}</td><td>${c.blocked ? c.caught_by.map((m) => `<span class="chip">${esc(m)}</span>`).join("") : '<span class="st fail">MISSED</span>'}</td></tr>`).join("")
+  }${(e2.cases || []).map((c) => `<tr><td class="mono">${esc(c.name)}</td><td>${esc(c.incident || "benign")}</td><td>${c.blocked ? '<span class="st fail">FALSE POSITIVE</span>' : '<span class="event-line">allowed (benign)</span>'}</td></tr>`).join("")}</tbody></table></div>`;
+  document.getElementById("eval").innerHTML = html;
+}
+
+function journalLine(e) {
+  let text = "", bad = false;
+  switch (e.kind) {
+    case "scenario": text = "▶ " + e.text; break;
+    case "decision": text = `${e.decision.package} ${e.decision.version}: ${verdictText(e.decision.outcome)} (loom ${e.command}${e.sandbox_backend === "unconfined-demo" ? ", unconfined" : ""})`; bad = e.decision.outcome === "block"; break;
+    case "rebuild": text = `${e.rebuilder}: ${e.package} ${e.version} ${e.outcome}${e.artifact ? " " + e.artifact : ""}${e.log_index != null ? " log#" + e.log_index : ""}${e.into_fork ? " (fork)" : ""}`; bad = e.outcome !== "reproducible" || e.into_fork; break;
+    case "publish": text = `${e.maintainer} published ${e.package} ${e.version}${e.rewrite ? " (force-push)" : ""}`; break;
+    case "log": text = e.ok ? `synced size ${e.size}${e.client ? " as " + e.client : ""}` : `REFUSED${e.client ? " as " + e.client : ""}: ${e.error}`; bad = !e.ok; break;
+    case "set-age": text = `${e.package} published ${e.hours}h ago`; break;
+    case "advisories": text = `advisory feed loaded (${e.advisories.length})`; break;
+    case "audit": text = "read-only provenance audit"; break;
+    default: text = e.text || JSON.stringify(e);
+  }
+  return `<div><span class="t">${hhmm(e.ts)}</span><span class="kd">${esc(e.kind)}</span><span class="${bad ? "bad" : ""}">${esc(text)}</span></div>`;
+}
+
+let lastEventCount = -1, lastSize = -1, seenRebuilds = 0, seenLogs = 0, seenDecisions = 0;
+function render(st) {
+  const attack = st.events.filter((e) => e.kind === "attack").pop();
+  const scs = scenarios(st.events);
+  const mode = document.getElementById("mode");
+  mode.className = "mode-chip " + (st.live ? "live" : "snap");
+  document.getElementById("mode-text").textContent = st.live ? "Live · polling services" : "Snapshot · " + when(st.generated_at);
+  // Edges animate for a poll cycle after new traffic on them.
+  const fresh = new Set();
+  const rbs = st.events.filter((e) => e.kind === "rebuild");
+  rbs.slice(seenRebuilds).forEach((e) => { fresh.add(e.rebuilder); fresh.add("log"); });
+  if (st.events.filter((e) => e.kind === "decision").length > seenDecisions || st.events.filter((e) => e.kind === "log").length > seenLogs) fresh.add("client");
+  if (!st.live) fresh.clear();
+  seenRebuilds = rbs.length;
+  seenLogs = st.events.filter((e) => e.kind === "log").length;
+  seenDecisions = st.events.filter((e) => e.kind === "decision").length;
+  renderServices(st, attack);
+  renderVitals(st, scs, attack);
+  renderTopo(st, attack, fresh);
+  if (st.events.length !== lastEventCount || (st.log && st.log.size) !== lastSize) {
+    renderLog(st, attack);
+    renderMatrix(scs);
+    renderScenarios(scs);
+    renderSandbox(st);
+    renderEval(st);
+    const j = document.getElementById("journal");
+    const atEnd = j.scrollTop + j.clientHeight >= j.scrollHeight - 20;
+    j.innerHTML = st.events.map(journalLine).join("") || '<p class="empty">The journal is empty.</p>';
+    if (atEnd || lastEventCount < 0) j.scrollTop = j.scrollHeight;
+    lastEventCount = st.events.length;
+    lastSize = st.log && st.log.size;
+  }
+}
+
+async function poll() {
+  try {
+    const r = await fetch("/api/state", { cache: "no-store" });
+    render(await r.json());
+  } catch (e) {
+    document.getElementById("mode").className = "mode-chip snap";
+    document.getElementById("mode-text").textContent = "Dashboard server unreachable";
+  }
+  setTimeout(poll, 1500);
+}
+
+if (SNAPSHOT) render(SNAPSHOT); else poll();
+</script>

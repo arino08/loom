@@ -56,7 +56,8 @@ cargo build
 python3 demo/fixtures/genfix.py   # materialise the package fixtures
 demo/run.sh              # run every scenario end-to-end on loopback
 demo/run.sh sandbox      # or just one: the confined-vs-unconfined contrast
-cargo test --workspace   # 90+ unit/integration tests
+LOOM_HOLD=1 demo/run.sh  # keep services + dashboard up afterwards (Ctrl-C to stop)
+cargo test --workspace   # 75 unit/integration tests
 cargo run -p loom-eval   # the acceptance-criteria harness (E1,E2,E4,E5,E6)
 ```
 
@@ -67,6 +68,22 @@ orphan-adoption attack, a build-time network injection, a force-push with a
 planted pacman hook, a `.pth` startup hook, the **confined-vs-unconfined sandbox
 contrast against a canary sink**, a split-view attack on the log, and a
 read-only provenance audit.
+
+### Deployment console
+
+While the demo runs, open **http://127.0.0.1:7790** for a live console of the
+whole deployment: service health and topology, the Warp log drawn as one
+thread per signed record (with the victim's forked view beside it during the
+split-view attack), a **defence matrix** showing which mechanism fired in each
+scenario, every client decision with its failing checks, the sandbox
+contrast, and the `loom-eval` acceptance results. At the end the run freezes
+the console into a self-contained `$LOOM_HOME/report.html`;
+[`docs/demo-report.html`](docs/demo-report.html) is one such snapshot.
+
+The console reads an event journal (`$LOOM_EVENTS`, one JSON object per
+decision, rebuild or log sync) that `loom`, `loomd` and `demo/run.sh` append
+to when the variable is set, plus live queries to each service. It decodes log
+records for display only; the `loom` client still verifies everything itself.
 
 Every "malicious" fixture is an **inert probe**: it reads a planted decoy file
 and pings a *local* sink with a fixed marker. Nothing leaves the machine; the

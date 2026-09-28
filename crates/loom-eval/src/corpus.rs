@@ -105,6 +105,12 @@ fn denied_build(denials: Vec<DenialView>) -> BuildView {
     BuildView { tier: "full".into(), layers: vec!["namespaces+landlock+seccomp".into()], reduced: vec![], denials, exit_code: 1, success: false, setup_error: None, duration_ms: 900 }
 }
 
+/// The evasive variant: the payload is wrapped in `|| true`, so the build
+/// exits 0 and yields an artifact despite the denials. Must still be blocked.
+fn tolerant_build(denials: Vec<DenialView>) -> BuildView {
+    BuildView { exit_code: 0, success: true, ..denied_build(denials) }
+}
+
 fn net_denial() -> DenialView {
     DenialView { syscall: "socket".into(), resource: "AF_INET".into(), rule: "deny-network".into(), requirement: "FR-3.4".into() }
 }
@@ -139,12 +145,14 @@ pub fn corpus() -> Vec<Entry> {
     e.build = Some(denied_build(vec![net_denial()]));
     v.push(Entry { name: "npm-injection", malicious: true, class: Class::BuildInjection, incident: "Atomic Arch npm install in PKGBUILD", evidence: e });
 
-    // 4. Credential harvest at build time (Shai-Hulud / ChainDrop).
+    // 4. Credential harvest at build time (Shai-Hulud / ChainDrop). The
+    //    payload swallows its own errors, so the build exits 0 and yields
+    //    an artifact: the denials alone must block it.
     let mut e = base("cred-harvest");
     e.attestations = vec![];
-    e.candidate = None;
+    e.candidate = Some(Candidate { digest: Digest::of(b"harvested-build"), origin: "local sandboxed build (full)".into() });
     e.local_build_required = true;
-    e.build = Some(denied_build(vec![home_denial(), net_denial()]));
+    e.build = Some(tolerant_build(vec![home_denial(), net_denial()]));
     v.push(Entry { name: "cred-harvest", malicious: true, class: Class::CredentialHarvest, incident: "Shai-Hulud / ChainDrop credential harvest (Aug 2026)", evidence: e });
 
     // 5. Self-propagating worm (harvest + publish). Same containment as (4);

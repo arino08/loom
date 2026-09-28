@@ -118,6 +118,25 @@ fn print_run(run: &loom_client::PackageRun, verbose: bool) {
     }
 }
 
+/// Record a decision in the demo event journal (no-op unless LOOM_EVENTS).
+fn journal_run(command: &str, run: &loom_client::PackageRun, installed: Option<bool>) {
+    if !loom_core::journal::enabled() {
+        return;
+    }
+    loom_core::journal::record(
+        "decision",
+        serde_json::json!({
+            "command": command,
+            "client": std::env::var("LOOM_CLIENT_ID").ok(),
+            "sandbox_backend": std::env::var("LOOM_HEDDLE_BACKEND").ok(),
+            "decision": run.decision,
+            "origin": run.origin,
+            "build": run.build,
+            "installed": installed,
+        }),
+    );
+}
+
 fn run(cli: Cli) -> anyhow::Result<i32> {
     let paths = Paths::from_env();
     match cli.cmd {
@@ -200,6 +219,7 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
                     print_run(&run, false);
                 }
                 if run.decision.blocked() {
+                    journal_run("install", &run, Some(false));
                     blocked = true;
                     if !json {
                         println!("  => NOT installed{}", if as_dep { " (dependency)" } else { "" });
@@ -208,10 +228,12 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
                     break; // dependents cannot be installed either
                 }
                 if dry_run {
+                    journal_run("install --dry-run", &run, Some(false));
                     results.push(serde_json::json!({"package": meta.name, "installed": false, "dry_run": true, "decision": run.decision}));
                     continue;
                 }
                 let out = loom.commit_install(&run, &installer, as_dep)?;
+                journal_run("install", &run, Some(out.installed));
                 if !json {
                     if out.installed {
                         println!("  => installed {} {} via {}", out.package, out.version, installer.describe());
@@ -247,6 +269,7 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
                 .next()
                 .ok_or_else(|| anyhow::anyhow!("{package} not found in the AUR"))?;
             let run = loom.run_package(&ctx, &meta, Mode::Verify { build }, version.as_deref())?;
+            journal_run(if build { "verify --build" } else { "verify" }, &run, None);
             if json {
                 println!("{}", serde_json::to_string_pretty(&run.decision)?);
             } else {
@@ -304,6 +327,7 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
         Cmd::Audit { json } => {
             let loom = Loom::open(paths, true)?;
             let r = audit::audit(&loom)?;
+            loom_core::journal::record("audit", serde_json::json!({"report": r}));
             if json {
                 println!("{}", serde_json::to_string_pretty(&r)?);
             } else {
@@ -313,7 +337,20 @@ fn run(cli: Cli) -> anyhow::Result<i32> {
         }
         Cmd::Log => {
             let loom = Loom::open(paths, false)?;
-            match loom.log_client().update() {
+            let res = loom.log_client().update();
+            let client = std::env::var("LOOM_CLIENT_ID").ok();
+            match &res {
+                Ok(v) => loom_core::journal::record(
+                    "log",
+                    serde_json::json!({
+                        "ok": true, "client": client, "size": v.checkpoint.size, "root": v.checkpoint.root_b64(),
+                        "cosigners": v.cosigs.iter().map(|c| c.witness.clone()).collect::<Vec<_>>(),
+                        "previous_size": v.previous_size,
+                    }),
+                ),
+                Err(e) => loom_core::journal::record("log", serde_json::json!({"ok": false, "client": client, "error": e.to_string()})),
+            }
+            match res {
                 Ok(v) => {
                     println!("origin:      {}", v.checkpoint.origin);
                     println!("tree size:   {}", v.checkpoint.size);

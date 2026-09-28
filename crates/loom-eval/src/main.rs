@@ -78,8 +78,23 @@ fn main() {
         }
         println!("  → {ben_blocked}/{ben_total} benign blocked = {ac2:.0}%  {}", pass(ac2 <= 5.0));
     }
-    report.insert("E1_attack_replay".into(), serde_json::json!({"malicious": mal_total, "blocked": mal_blocked, "percent": ac1, "ac1_pass": ac1 >= 90.0}));
-    report.insert("E2_false_positives".into(), serde_json::json!({"benign": ben_total, "blocked": ben_blocked, "percent": ac2, "ac2_pass": ac2 <= 5.0}));
+    let cases = |malicious: bool| -> Vec<serde_json::Value> {
+        decisions
+            .iter()
+            .filter(|(e, _)| e.malicious == malicious)
+            .map(|(e, d)| {
+                let rules = blocking_rules(d);
+                serde_json::json!({
+                    "name": e.name,
+                    "incident": e.incident,
+                    "blocked": d.blocked(),
+                    "caught_by": rules.iter().filter_map(|r| mech_of(r)).collect::<Vec<_>>(),
+                })
+            })
+            .collect()
+    };
+    report.insert("E1_attack_replay".into(), serde_json::json!({"malicious": mal_total, "blocked": mal_blocked, "percent": ac1, "ac1_pass": ac1 >= 90.0, "cases": cases(true)}));
+    report.insert("E2_false_positives".into(), serde_json::json!({"benign": ben_total, "blocked": ben_blocked, "percent": ac2, "ac2_pass": ac2 <= 5.0, "cases": cases(false)}));
 
     // ---- E4 ablation (AC-4: no single mechanism accounts for all detections) ----
     let mut catch: BTreeMap<&str, Vec<&str>> = BTreeMap::new();
@@ -126,6 +141,7 @@ fn main() {
         "best_single_mechanism_catches": max_single,
         "total_malicious_blocked": mal_blocked,
         "mechanisms_used": catch.len(),
+        "catches": catch.iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_,_>>(),
         "sole_catchers": sole.iter().map(|(k, v)| (k.to_string(), v.clone())).collect::<BTreeMap<_,_>>(),
         "ac4_pass": ac4,
     }));
