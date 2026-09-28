@@ -339,6 +339,8 @@ fi
 "$BIN/loom-testbed" report --out "$LOOM_HOME/report.html"
 b "demo complete — logs under $LOG"
 if [ "${LOOM_HOLD:-0}" = 1 ]; then
+  # demo/present.sh waits for this file to know the scenario is ready.
+  [ -n "${LOOM_READY_FILE:-}" ] && touch "$LOOM_READY_FILE"
   echo "services and dashboard stay up at http://$HOST:$DASH_PORT — Ctrl-C to stop"
   wait
 fi

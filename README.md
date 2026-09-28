@@ -57,6 +57,7 @@ python3 demo/fixtures/genfix.py   # materialise the package fixtures
 demo/run.sh              # run every scenario end-to-end on loopback
 demo/run.sh sandbox      # or just one: the confined-vs-unconfined contrast
 LOOM_HOLD=1 demo/run.sh  # keep services + dashboard up afterwards (Ctrl-C to stop)
+demo/present.sh          # guided live demo: one keypress per scenario (for presentations)
 cargo test --workspace   # 75 unit/integration tests
 cargo run -p loom-eval   # the acceptance-criteria harness (E1,E2,E4,E5,E6)
 ```
