@@ -371,7 +371,7 @@ function outcomeSummary(sc) {
   const logFail = sc.events.some((e) => e.kind === "log" && e.ok === false);
   if (logFail) return '<span class="pill block">FORK REJECTED</span>';
   if (!ds.length) return '<span class="event-line">no client decision</span>';
-  if (blocked) return `<span class="pill block">${blocked} BLOCKED</span> <span class="event-line">of ${ds.length}</span>`;
+  if (blocked) return `<span class="pill block">${blocked} OF ${ds.length} BLOCKED</span>`;
   return `<span class="pill allow">${ds.length} ALLOWED</span>`;
 }
 
@@ -423,7 +423,7 @@ function renderTopo(st, attack, fresh) {
   edges += `<path class="edge ${fresh.has("client") ? "flow" : ""}" d="M580 158 L580 239"/>`;
   edges += `<path class="edge" d="M320 263 C360 290 440 285 495 270" stroke-dasharray="2 5"/>`;
   let nodes = node(80, 150, 120, 50, "Mock AUR", "recipes · :7700", up("aur") ? "up" : "down");
-  threads.forEach((t, i) => nodes += node(320, ty[i], 150, 46, t, `rebuilder · peer :773${i + 1}`, up(`peer-${t}`) ? "up" : "down"));
+  threads.forEach((t, i) => nodes += node(320, ty[i], 150, 46, t, `rebuilder · :773${i + 1}`, up(`peer-${t}`) ? "up" : "down"));
   nodes += node(580, 130, 150, 56, "Warp log", splitView ? "SPLIT-VIEW MODE" : `size ${st.log.size ?? "?"} · :7710`, splitView ? "bad" : up("warp") ? "up" : "down");
   [1, 2, 3].forEach((i) => {
     const id = `witness-${i}`;
