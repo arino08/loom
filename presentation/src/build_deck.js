@@ -110,7 +110,7 @@ const P = { 1: "Presenter 1 — Introduction & research (slides 1–7)", 2: "Pre
   txt(s, "A Decentralised, Verifying Package Manager for the Arch User Repository", 0.7, 2.3, 7.3, 1.2, { font: HF, size: 26, color: "DDE2FF" });
   txt(s, "Sandboxed builds · k-of-n reproducible attestations · a witnessed transparency log · authority-continuity checks", 0.7, 3.6, 7.2, 0.7, { size: 14, color: "AEB6DA", italic: true });
   txt(s, "GROUP NO. 14", 0.7, 4.45, 3.0, 0.3, { size: 11, bold: true, color: C.amber, cs: 3 });
-  const team = [["Aiman Haque", "231415"], ["Zoya Mulani", "231453"], ["Aariz Sheikh", "231453"], ["Yusuf Aslam", "231460"]];
+  const team = [["Aiman Haque", "231415"], ["Zoya Mulani", "231435"], ["Aariz Sheikh", "231453"], ["Yusuf Aslam", "231460"]];
   team.forEach(([n, r], i) => {
     const x = 0.7 + (i % 2) * 3.55, y = 4.85 + Math.floor(i / 2) * 0.78;
     s.addShape(pres.shapes.RECTANGLE, { x, y: y + 0.06, w: 0.06, h: 0.52, fill: { color: i % 2 ? C.amber : "8C9BFF" }, line: { type: "none" } });

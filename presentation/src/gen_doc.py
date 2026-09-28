@@ -39,7 +39,7 @@ def NOTE(t, bg=AMBERSOFT, border=AMBER): st.append(boxed([P(t, "body")], bg, bor
 st += [Spacer(1, 30 * mm), P("GROUP NO. 14 · MAJOR PROJECT · TECHNICAL REPORT", "eyebrow"),
        P("Loom: A Decentralised, Verifying Package Manager for the Arch User Repository", "title"),
        P("Technical design and security report: how every part works, and why it is secure", "subtitle"), Spacer(1, 10)]
-st.append(table([["Team member", "Roll No."], ["Aiman Haque", "231415"], ["Zoya Mulani", "231453"], ["Aariz Sheikh", "231453"], ["Yusuf Aslam", "231460"]], [90 * mm, 40 * mm]))
+st.append(table([["Team member", "Roll No."], ["Aiman Haque", "231415"], ["Zoya Mulani", "231435"], ["Aariz Sheikh", "231453"], ["Yusuf Aslam", "231460"]], [90 * mm, 40 * mm]))
 st += [Spacer(1, 8), P("Guide: [Guide Name] · Department of [Department] · [Institution] · September 2026", "body"), Spacer(1, 14)]
 st.append(boxed([P("<b>Abstract</b>", "h3"), P(
     "Community package repositories such as the Arch User Repository (AUR) execute unreviewed build scripts with the user's full privileges and install whatever a maintainer publishes. "
