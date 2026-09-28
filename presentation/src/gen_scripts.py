@@ -30,7 +30,14 @@ NUMBERS = [
 ]
 
 
+MASTER = []          # every segment, in presentation order, for the run-of-show
+CUR = {"p": 0}
+
+STEP_OF = {"healthy": 1, "quarantine": 2, "orphan": 3, "npm": 4, "sandbox": 5, "forcepush": 6, "placement": 7, "splitview": 8, "": 9}
+
+
 def header(n, role, slides, time, handover_to, handover_from):
+    CUR["p"] = n
     s = [P("LOOM · MAJOR PROJECT REVIEW · SPEAKER SCRIPT", "eyebrow"),
          P(f"Presenter {n} — {role}", "title"),
          P(f"Slides {slides} · target time {time}", "subtitle"),
@@ -48,6 +55,7 @@ def header(n, role, slides, time, handover_to, handover_from):
 
 
 def slide(num, title, time, say, cues=None, terms=None):
+    MASTER.append(dict(kind="slide", p=CUR["p"], num=num, title=title, time=time, say=say, cues=cues))
     out = [CondPageBreak(60 * mm), P(f"Slide {num} · {title} <font color='#5B6275' size='10'>({time})</font>", "h1")]
     if cues:
         out += [P("On screen: " + cues, "cue")]
@@ -58,6 +66,7 @@ def slide(num, title, time, say, cues=None, terms=None):
 
 
 def handoff(text):
+    MASTER.append(dict(kind="handoff", p=CUR["p"], text=text))
     return [Spacer(1, 6), boxed([P("<b>Handover line</b>", "h3"), P(text, "say")], AMBERSOFT, AMBER)]
 
 
@@ -75,7 +84,16 @@ def numbers():
 
 
 def demo_step(title, cmd, expect, say, fallback=None):
-    out = [CondPageBreak(55 * mm), P(title, "h2"), code(cmd)]
+    import re as _re
+    title = _re.sub(r"^Scenario \d+ — ", "", title)
+    title = title[:1].upper() + title[1:]
+    sc = cmd.replace("LOOM_HOLD=1 demo/run.sh", "").strip()
+    n = STEP_OF[sc]
+    MASTER.append(dict(kind="demo", p=CUR["p"], step=n, title=title, expect=expect, say=say, fallback=fallback))
+    keys = (f"present.sh window → Step {n}: press Enter to run it.\n"
+            f"When you have finished talking: press Enter to stop it and move on.\n\n"
+            f"# only if present.sh is not running, type by hand:\n{cmd}   (Ctrl-C to stop)")
+    out = [CondPageBreak(55 * mm), P(f"Step {n} · {title}", "h2"), code(keys)]
     out += [P("<b>What you will see</b>", "h3")] + bullets(expect)
     out += [P("<b>Say</b>", "h3")] + [P(p, "say") for p in say]
     if fallback:
@@ -85,14 +103,13 @@ def demo_step(title, cmd, expect, say, fallback=None):
 
 SETUP = [
     P("Before the jury arrives (whoever owns the laptop)", "h2"),
-    code("cd loom\ncargo build                          # once; takes ~30 s\npython3 demo/fixtures/genfix.py      # materialise package fixtures\ndemo/run.sh                          # full dry run, ~70 s; must end with 'demo complete'\ncargo run -p loom-eval               # optional: prints 'ALL CHECKED ACCEPTANCE CRITERIA PASS'"),
+    code("cd loom\ncargo build                        # once; takes ~30 s\npython3 demo/fixtures/genfix.py    # materialise package fixtures\ndemo/run.sh                        # full dry run, ~70 s; must end with 'demo complete'\ndemo/present.sh                    # checks the laptop, waits at step 1"),
     *bullets([
-        "The first line of every run prints <b>sandbox tier on this host: full</b>. If it says <i>reduced</i>, the host has unprivileged user namespaces disabled; the demo still works, but say “reduced tier” when you describe the sandbox.",
-        "Make the terminal font large (at least 16 pt) and the window at least 100 columns wide; the output is designed for 80 columns.",
-        "Open a browser tab at <b>http://127.0.0.1:7790</b> (the live console; it is up only while a scenario is running with LOOM_HOLD=1).",
-        "Open <b>docs/demo-report.html</b> in a second tab. It is a saved snapshot of a full run and is your backup if anything fails live.",
-        "demo/run.sh frees its own ports, so a crashed earlier run is not a problem. Never run <i>pkill -f loomd</i> by hand.",
-        "Each scenario is independent: <b>LOOM_HOLD=1 demo/run.sh &lt;scenario&gt;</b> runs one scenario in 6–10 seconds, then keeps the services and console alive until you press <b>Ctrl-C</b>.",
+        "<b>demo/present.sh</b> runs the whole live demo one keypress at a time, so nobody types commands on stage. It prints whose turn it is and what to point at, runs the scenario, keeps everything live while you talk, and stops it cleanly when you press Enter again.",
+        "Keys: <b>Enter</b> run the step, and later stop it and move on · <b>s</b> skip a step · <b>r</b> run the current step again · <b>q</b> quit. If something goes wrong mid-demo: press q, then <b>demo/present.sh --from N</b> to restart at step N.",
+        "The first line of every step prints <b>sandbox tier on this host: full</b>. If it says <i>reduced</i>, the laptop has user namespaces disabled; the demo still works, but say “reduced tier” when you describe the sandbox.",
+        "Make the terminal font large (at least 16 pt) and the window at least 100 columns wide. Put the browser next to it with <b>http://127.0.0.1:7790</b> open: the live console. It reconnects by itself whenever a step starts.",
+        "Keep <b>docs/demo-report.html</b> open in a second browser tab: a saved snapshot of a full run, and your backup if anything fails live.",
     ]),
 ]
 
@@ -205,8 +222,8 @@ def p3():
         "The most interesting algorithm is <b>independence</b>. Two attestations are correlated if they share a rebuilder, an organisation or a toolchain; the toolchain ID is a SHA-256 hash of the build image and its component versions. The number of independent attestations is the <b>maximum independent set</b> of that correlation graph. In this example, thread-b and thread-c used the same toolchain, so three agreeing attestations count as two. That still meets the default k of two.",
     ], "left half first, from the outer box inwards; then the red box; then the nine rule chips and the three-node graph.", "namespaces, pivot_root, Landlock ABI, seccomp-BPF, user-notification supervisor, maximum independent set.")
     st += [PageBreak(), P("Live demonstration, part A", "h1"),
-           P("Switch from the slides to the terminal and, side by side, the browser tab with the console (http://127.0.0.1:7790). Run one scenario at a time. "
-             "Each one finishes in about 7 seconds and then holds; talk over the output, then press <b>Ctrl-C</b> before starting the next. "
+           P("Switch from the slides to the terminal and, side by side, the browser tab with the console (http://127.0.0.1:7790). The terminal already shows <b>demo/present.sh</b> waiting at step 1. "
+             "Press <b>Enter</b> to run a step; it finishes in about 7 seconds and then holds, with the console live. Talk over it, then press <b>Enter</b> again to stop it and bring up the next step. "
              "Say this first: “Everything you are about to see is real: a mock AUR, the Warp log, three witnesses and three rebuilders, running as separate processes on this laptop. "
              "The ‘malicious’ packages are harmless probes that only read a planted decoy file and ping a local test server; nothing leaves the machine.”", "body")]
     st += SETUP
@@ -248,7 +265,7 @@ def p3():
     ], [
         "“This is our headline empirical result. The <b>same</b> malicious build, run twice. Confined by Heddle, zero hits: it could not read the home directory or reach the network. Unconfined, the way a normal AUR helper runs it, it phoned home. We don't just claim the sandbox works; we show it denying the payload.”",
     ], "open the backup tab docs/demo-report.html and show the same result in the Heddle sandbox panel.")
-    st += handoff("“That was containment and quarantine. [Presenter 4] will now show the attacks that try to hide: a rewritten history with a planted hook, a Python startup hook, and an attack on the log itself.” (Press Ctrl-C to stop the last scenario before handing over.)")
+    st += handoff("“That was containment and quarantine. [Presenter 4] will now show the attacks that try to hide: a rewritten history with a planted hook, a Python startup hook, and an attack on the log itself.” (Press Enter to stop step 5. The screen shows HANDOVER and step 6 waits for Presenter 4.)")
     st += qa([
         ("Why not simply use Docker or bubblewrap?", "Docker needs a root daemon and is built for isolation, not least-privilege policy; bubblewrap sets up namespaces but has no Landlock layer and does not explain denials. Heddle composes namespaces, Landlock and seccomp from a single declarative policy, so every denial names the requirement and rule that fired (FR-3.7), and it degrades to Landlock plus seccomp where user namespaces are disabled."),
         ("What is Landlock, and why is it important here?", "Landlock is a Linux security module (kernel 5.13+) that lets an unprivileged process restrict its own access to files; ABI 4 (kernel 6.7) adds TCP restrictions and ABI 6 (6.12) adds IPC scoping. It needs no root, so the sandbox still works in the reduced tier when namespaces are not allowed."),
@@ -267,7 +284,7 @@ def p3():
 def p4():
     st = header(4, "Live demo (part B), results & conclusion", "live scenarios 5, 6, 8 + full run; slides 13 – 16", "≈ 9 minutes (4 min demo, 5 min slides) + leading Q&A", "the jury (questions)", "Presenter 3 (demo part A)")
     st += [P("Live demonstration, part B", "h1"),
-           P("You continue in the terminal. Same routine: run one scenario, talk over the output, then press <b>Ctrl-C</b>.", "body")]
+           P("Take the keyboard when the screen shows <b>HANDOVER: Presenter 3 → Presenter 4</b>. Same routine: <b>Enter</b> to run a step, talk over it, <b>Enter</b> to stop it and move on.", "body")]
     st += demo_step("Scenario 5 — force-push plus a planted pacman hook (defence in depth)", "LOOM_HOLD=1 demo/run.sh forcepush", [
         "forcepush-lib 3.1 installs. Then <i>published forcepush-lib 3.1-1-rewrite by frank (history rewritten)</i>.",
         "<b>BLOCKED (pre-build)</b>: [FAIL] continuity, <i>recipe history rewritten (force-push): commit … does not descend from it</i>.",
@@ -289,13 +306,13 @@ def p4():
     ], [
         "“Now the attacker is the log operator itself, colluding with one compromised rebuilder and one corrupt witness. It shows the victim a private history containing a backdoored attestation. But the honest witnesses have already cosigned the public history, and a fork does not extend it, so they refuse. The victim's client sees only one cosignature where it needs two, and <b>rejects the fork</b>. Everyone else is unaffected.”",
     ])
-    st += demo_step("Finale — the full run and the live console (optional, about 70 seconds)", "LOOM_HOLD=1 demo/run.sh", [
+    st += demo_step("Finale — all nine scenarios with the live console (optional, about 50–70 seconds)", "LOOM_HOLD=1 demo/run.sh", [
         "All nine scenarios stream past in the terminal. Switch to the browser tab <b>http://127.0.0.1:7790</b>.",
         "The console: service health (witness-3 turns red as corrupt in scenario 8), the log drawn as coloured threads, and the defence matrix filling in, with red cells spread across every column.",
     ], [
         "“This is our deployment console, reading the same services live. Watch the defence matrix: each red cell is a mechanism stopping a package, and the red is spread across every column. No single defence does all the work. At the end the run saves this page as a report file, so the result can be inspected afterwards.”",
-    ], "if time is short, skip this and open docs/demo-report.html instead. It shows the same console from a completed run.")
-    st += [P("Press Ctrl-C and return to the slides at slide 13.", "cue")]
+    ], "if time is short, press s to skip it and open docs/demo-report.html instead. It shows the same console from a completed run.")
+    st += [P("After the finale press Enter: the screen shows “Demo complete” and everything is stopped. Return to the slides at slide 13.", "cue")]
     st += slide(13, "Results: every checked acceptance criterion passes", "1 min 30 s", [
         "Our specification defines six experiments. <b>E1</b>, attack replay: all nine malicious cases in our labelled incident corpus are blocked, and blocked <b>before any payload could run</b>. <b>E2</b>, false positives: none of the seven benign packages is blocked, even though they deliberately stress each mechanism, such as a fresh security release or a reviewed change of maintainer.",
         "<b>E3</b>, build compatibility, is a measurement rather than a pass or fail gate; the live demo measures it. <b>E4</b> is the chart: the ablation study. Detections are spread across five mechanisms, and the best single one catches only three of nine, so no single bypass defeats Loom.",
@@ -331,3 +348,149 @@ for n, fn, fname in [(1, p1, "Presenter1_Introduction_and_Research.pdf"), (2, p2
                      (3, p3, "Presenter3_Sandbox_Policy_and_Demo_A.pdf"), (4, p4, "Presenter4_Demo_B_Results_and_Conclusion.pdf")]:
     build(os.path.join(OUT, fname), fn(), f"Loom — Major Project Review · Speaker script · Presenter {n}")
     print("wrote", fname)
+
+
+# =========================================================================== master run-of-show
+def secs(t):
+    import re
+    if "screen" in t:
+        return 20
+    m = re.findall(r"(\d+)\s*(min|s)", t)
+    return sum(int(v) * (60 if u == "min" else 1) for v, u in m) or 30
+
+
+def clock(x):
+    return f"{int(x // 60)}:{int(x % 60):02d}"
+
+
+DEMO_SECS = {1: 60, 2: 65, 3: 75, 4: 65, 5: 75, 6: 75, 7: 45, 8: 75, 9: 90}
+ROLE = {1: "Presenter 1", 2: "Presenter 2", 3: "Presenter 3", 4: "Presenter 4"}
+OFFSTAGE = {  # what everyone else does, keyed by the presenter who is speaking
+    1: "P2 keeps time (cards at 2 min and 30 s before each handover) · P3 sits at the laptop, present.sh waiting at step 1 · P4 stands ready",
+    2: "P1 takes over timekeeping for the rest of the talk · P3 at the laptop · P4 stands ready",
+    3: "P1 keeps time · P2 notes the jury's questions and reactions for Q&A · P4 watches the console, ready to take the keyboard",
+    4: "P1 keeps time · P2 notes questions · P3 steps back from the keyboard, ready to answer sandbox/policy questions",
+}
+
+
+def build_master():
+    s = [P("GROUP NO. 14 · MAJOR PROJECT REVIEW", "eyebrow"), P("Run of show and full presentation script", "title"),
+         P("Loom: a decentralised, verifying package manager for the AUR", "subtitle"),
+         P("This is the whole presentation from the first word to the last question, in order: who speaks, what is on the screen, what the others are doing, "
+           "what to press during the live demo, and the exact words. The four individual speaker PDFs contain the same text split by presenter, plus the Q&amp;A preparation.", "body")]
+
+    s += [P("1. Roles", "h1"), table([
+        ["Slot", "Speaks", "Controls", "When not speaking"],
+        ["Presenter 1", "Slides 1–7: introduction, problem, literature review, research gap", "Clicker for slides 1–7", "Timekeeper from slide 8 to the end"],
+        ["Presenter 2", "Slides 8–11: architecture, flows, cryptography, Warp", "Clicker for slides 8–11", "Timekeeper during Part 1; notes the jury's questions during the demo"],
+        ["Presenter 3", "Slide 12 (Heddle and Weave), then live demo steps 1–5", "Clicker for slide 12; laptop keyboard for steps 1–5", "Before slide 12: at the laptop, keeping present.sh ready at step 1"],
+        ["Presenter 4", "Live demo steps 6–9, slides 13–16, leads the Q&amp;A", "Keyboard for steps 6–9; clicker for slides 13–16", "Watches the console during part A, ready to point at it"],
+    ], [24 * mm, 58 * mm, 42 * mm, W - 124 * mm])]
+
+    s += [P("2. Stage and screen", "h1"), *bullets([
+        "One laptop, <b>mirrored</b> to the projector, so what the presenter sees is what the jury sees. The demo needs no internet: every service runs on the laptop.",
+        "<b>Two workspaces</b> (virtual desktops): workspace 1 has the slides in full-screen slideshow mode; workspace 2 has the terminal on the left half and the browser (http://127.0.0.1:7790) on the right half. Practise switching with Alt+Tab or your desktop's workspace shortcut.",
+        "The terminal runs <b>demo/present.sh</b>, started before the jury arrives and left waiting at step 1. The browser has a second tab with <b>docs/demo-report.html</b> as the backup.",
+        "Use a clicker for the slides so each speaker can stand, not sit at the laptop. Only the demo needs someone at the keyboard.",
+    ])]
+
+    s += [P("3. Countdown", "h1"), table([
+        ["When", "Who", "What"],
+        ["Day before", "Everyone", "Full rehearsal on the exact laptop, with the projector if possible. Time it: the talk should run about 33 minutes. Record one complete run of <i>demo/run.sh</i> as a last-resort video."],
+        ["T − 30 min", "Presenter 3", "cd loom · cargo build · python3 demo/fixtures/genfix.py · demo/run.sh (dry run, must end with 'demo complete'). Check that it prints 'sandbox tier on this host: full'."],
+        ["T − 15 min", "Presenter 3", "Start demo/present.sh; all pre-flight checks show ✓; leave it at the step 1 banner. Arrange workspace 2 (terminal left, browser right, backup tab open). Terminal font ≥ 16 pt."],
+        ["T − 5 min", "Presenter 1", "Slideshow open at slide 1 on workspace 1; clicker tested; phones silent; water."],
+    ], [24 * mm, 26 * mm, W - 50 * mm])]
+
+    # timeline
+    t = 0.0
+    rows = [["Clock", "Who", "Segment", "On screen", "Everyone else"]]
+    timeline = []
+    for e in MASTER:
+        if e["kind"] == "slide":
+            d = secs(e["time"]) if e["num"] != 16 else 0
+            seg = f"Slide {e['num']} · {e['title']}"
+            screen = "slides"
+        elif e["kind"] == "demo":
+            d = DEMO_SECS[e["step"]]
+            seg = f"Demo step {e['step']} · {e['title']}"
+            screen = "terminal + console"
+        else:
+            timeline.append((t, e)); continue
+        timeline.append((t, e))
+        if e["kind"] == "demo" and e["step"] == 1:
+            rows.append([clock(t - 20), ROLE[e["p"]], "Switch to workspace 2 (terminal + browser)", "demo workspace", OFFSTAGE[e["p"]]])
+        rows.append([clock(t), ROLE[e["p"]], seg, screen, OFFSTAGE[e["p"]]])
+        if e["kind"] == "demo" and e["step"] == 9:
+            rows.append([clock(t + d), ROLE[e["p"]], "Press Enter ('Demo complete'); switch back to the slideshow at slide 13", "slides", OFFSTAGE[e["p"]]])
+            t += 20
+        if e["kind"] == "slide" and e["num"] == 12:
+            t += 20
+        t += d
+    rows.append([clock(t), "Presenter 4", "Questions and answers (references slide stays up)", "slide 16", "everyone answers in their own area"])
+    last = None
+    for r in rows[1:]:
+        if r[4] == last and not r[2].startswith("Questions"):
+            r[4] = "″"
+        else:
+            last = r[4]
+    total = t
+    s += [PageBreak(), P("4. Timeline at a glance", "h1"),
+          P(f"Target length about {int(total // 60)} minutes before questions. Each handover is marked in the full script below. If you are running late, drop the demo finale (step 9) and show docs/demo-report.html for 20 seconds instead: that saves about 70 seconds.", "body"),
+          table(rows, [14 * mm, 22 * mm, 62 * mm, 26 * mm, W - 124 * mm])]
+
+    # full script
+    s += [PageBreak(), P("5. The full script, start to finish", "h1"),
+          P("Grey lines are actions. <b>Say</b> paragraphs are what the speaker says. Amber boxes are handovers.", "body")]
+    for when, e in timeline:
+        who = ROLE[e["p"]]
+        if e["kind"] == "slide":
+            s.append(CondPageBreak(50 * mm))
+            s.append(P(f"<font color='#4455C7'>[{clock(when)}]</font> {who} · Slide {e['num']} — {e['title']}", "h2"))
+            if e["num"] == 1:
+                s.append(P("Action: Presenter 1 walks to the front with the clicker; slide 1 is already on screen.", "cue"))
+            if e.get("cues"):
+                s.append(P("On screen: " + e["cues"], "cue"))
+            s += [P(x, "say") for x in e["say"]]
+            if e["num"] == 12:
+                s.append(P("Action: at the end of this slide, Presenter 3 switches to workspace 2 (terminal + browser), where present.sh is waiting at step 1.", "cue"))
+        elif e["kind"] == "demo":
+            s.append(CondPageBreak(45 * mm))
+            s.append(P(f"<font color='#4455C7'>[{clock(when)}]</font> {who} · Demo step {e['step']} — {e['title']}", "h2"))
+            if e["step"] == 1:
+                s.append(P("Say first: “Everything you are about to see is real: a mock AUR, the Warp log, three witnesses and three rebuilders, running as separate processes on this laptop. "
+                           "The ‘malicious’ packages are harmless probes that only read a planted decoy file and ping a local test server; nothing leaves the machine.”", "say"))
+            s.append(P(f"Action: press <b>Enter</b> (present.sh step {e['step']}). Wait about 7 seconds until the screen says <i>Step {e['step']} is live</i>.", "cue"))
+            s.append(P("Point at: " + "; ".join(e["expect"]), "cue"))
+            s += [P(x, "say") for x in e["say"]]
+            s.append(P("Action: press <b>Enter</b> to stop the step." + (" The screen shows <i>Demo complete</i>; switch back to the slideshow at slide 13." if e["step"] == 9 else ""), "cue"))
+        else:
+            s.append(boxed([P(f"<b>Handover</b> · {who} says:", "h3"), P(e["text"], "say")], AMBERSOFT, AMBER))
+            s.append(Spacer(1, 6))
+    s += [P("Action: slide 16 (references) stays on screen for the whole Q&amp;A.", "cue")]
+
+    s += [PageBreak(), P("6. If something goes wrong", "h1"), table([
+        ["What happens", "Who acts", "What to do"],
+        ["present.sh shows a red ✗ in pre-flight", "Presenter 3 (before the talk)", "Install the missing tool, or let it build/generate what it offers to; run demo/present.sh again."],
+        ["A step says 'The scenario stopped unexpectedly'", "Whoever has the keyboard", "Press Enter to retry once. If it fails again, press s to skip and say: “Let me show you the same result from our recorded run”, then use docs/demo-report.html."],
+        ["The screen freezes or the terminal is closed by accident", "Whoever has the keyboard", "Open a new terminal: cd loom, then demo/present.sh --from N (N = the step you were on). It frees the ports itself."],
+        ["The console page says 'Dashboard server unreachable'", "Nobody (wait)", "Normal between steps; it reconnects within 2 seconds of the next step starting."],
+        ["Running more than 3 minutes late", "Timekeeper signals; Presenter 4 decides", "Skip the finale (press s at step 9) and show docs/demo-report.html for 20 seconds."],
+        ["The laptop dies completely", "Presenter 4", "Present slides 13–14 (they contain the demo results) from any machine, and play the recorded run if you have it."],
+    ], [48 * mm, 36 * mm, W - 84 * mm])]
+
+    s += [P("7. Questions and answers", "h1"), table([
+        ["If the question is about…", "It goes to"],
+        ["Motivation, the AUR, related work, novelty, references", "Presenter 1"],
+        ["Architecture, Merkle log, witnesses, signatures, hashing", "Presenter 2"],
+        ["Sandbox (namespaces, Landlock, seccomp), policy, independence, quarantine", "Presenter 3"],
+        ["The demo, results, evaluation, limitations, future work", "Presenter 4"],
+    ], [110 * mm, W - 110 * mm]),
+          *bullets(["Presenter 4 repeats each question in one sentence so everyone hears it, then names who will answer.",
+                    "Answer in two or three sentences, then stop. It is fine to say “that is a limitation we state in our report” when it is true.",
+                    "Closing line (Presenter 4): “Thank you for your time and your questions.”"])]
+    build(os.path.join(OUT, "Presentation_Run_of_Show_and_Full_Script.pdf"), s, "Loom — Major Project Review · Run of show and full script · Group 14")
+    print("wrote Presentation_Run_of_Show_and_Full_Script.pdf", clock(total))
+
+
+build_master()
